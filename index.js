@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const firebase = require('firebase-admin');
 const moment = require('moment');
+const fetch = require('node-fetch');
 
 const slackToken = process.env.SLACK_TOKEN;
 
@@ -41,21 +42,21 @@ app.post('/', (req, res) => {
     const usersRef = ref.child('users');
     const lunchDate = getNextLunchDate();
 
-    if (body.text === 'join') {
-      usersRef.child(body.user_id).set('');
-      const resBody = {
-        text: getJoinResponseText(lunchDate)
-      }
-      res.send(resBody);
+    // if (body.text === 'join') {
+    //   usersRef.child(body.user_id).set('');
+    //   const resBody = {
+    //     text: getJoinResponseText(lunchDate)
+    //   }
+    //   res.send(resBody);
 
-    } else if (body.text === 'cancel') {
-      usersRef.child(body.user_id).set(null);
-      const resBody = {
-        text: getCancelResponseText(lunchDate)
-      }
-      res.send(resBody);
+    // } else if (body.text === 'cancel') {
+    //   usersRef.child(body.user_id).set(null);
+    //   const resBody = {
+    //     text: getCancelResponseText(lunchDate)
+    //   }
+    //   res.send(resBody);
 
-    } else {
+    // } else {
       usersRef.once("value", function (data) {
         const users = data.toJSON();
         const userIds = Object.keys(users);
@@ -65,15 +66,64 @@ app.post('/', (req, res) => {
         const resBody = {
           text: hasUserJoined ? getJoinedStatusText(lunchDate, numUsers) : getBasicStatusText(lunchDate, numUsers)
         }
-        res.send(resBody);
+        res.send();
+
+        fetch(body.response_url, {
+          method: 'POST',
+          headers: {
+            'Content-type': 'application/json'
+          },
+          body: JSON.stringify(getStatus())
+        });
       });
-    }
+    // }
   } else {
     console.log(body);
     res.send();
   }
-
 });
+
+app.listen(8000, () => console.log('Example app listening on port 8000!'));
+
+const getStatus = () => {
+  return {
+    text: getBasicStatusText(),
+    attachments: [
+      buildActionsAttachment()
+    ]
+  };
+}
+
+const buildActionsAttachment = () => (
+  {
+    "text": "Actions",
+    "fallback": "You are unable to perform an action",
+    "callback_id": "wopr_game",
+    "color": "#3AA3E3",
+    "attachment_type": "default",
+    "actions": [
+      {
+        "name": "game",
+        "text": "Join",
+        "type": "button",
+        "value": "join"
+      },
+      {
+        "name": "game",
+        "text": "Cancel",
+        "style": "danger",
+        "type": "button",
+        "value": "cancel",
+        "confirm": {
+          "title": "Are you sure you want to cancel?",
+          "text": "Do it for the kids",
+          "ok_text": "Yes",
+          "dismiss_text": "No"
+        }
+      }
+    ]
+  }
+);
 
 const getBasicStatusText = (lunchDate, numUsers) => (
   `:wave: Hi there! [UNDER CONSTRUCTION]
@@ -81,9 +131,7 @@ const getBasicStatusText = (lunchDate, numUsers) => (
 I'll organize for you a social lunch by putting you together with 2 other random coworkers :awesome: 
 Next lunch date is *${lunchDate.format('dddd D.M')}*
 ${getNumUsersText(numUsers)}
-
-${getUsageText()}
-`  
+`
 );
 
 const getJoinedStatusText = (lunchDate, numUsers) => (
@@ -91,7 +139,7 @@ const getJoinedStatusText = (lunchDate, numUsers) => (
 ${getNumUsersText(numUsers)}
 
 ${getUsageText()}
-`  
+`
 );
 
 const getJoinResponseText = lunchDate => (
@@ -100,7 +148,7 @@ const getJoinResponseText = lunchDate => (
 
 const getCancelResponseText = (lunchDate) => (
   `:feelsbadman: You have decided to cancel the next social lunch which will happen on *${lunchDate.format('dddd D.M')}*.
-Please, reconsider your decision, do it for the kids.`  
+Please, reconsider your decision, do it for the kids.`
 );
 
 const getNumUsersText = numUsers => (
@@ -130,4 +178,6 @@ const getNextLunchDate = () => {
   return lunchDate;
 }
 
-app.listen(8000, () => console.log('Example app listening on port 8000!'));
+const generateLunchGroups = () => {
+
+};
