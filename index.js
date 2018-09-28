@@ -20,14 +20,14 @@ firebase.initializeApp({
   databaseURL: `https://${process.env.FIREBASE_DB_NAME}.firebaseio.com`
 });
 
-const ref = firebase.app().database().ref();
+const database = firebase.app().database();
 
 app.get('/', (req, res) => {
   console.log('GET');
   res.send('Hello World!');
 });
 
-app.post('/', (req, res) => {
+app.post('/', async (req, res) => {
   const { body } = req;
   if (body.type === 'url_verification') {
     // Verify token
@@ -38,90 +38,151 @@ app.post('/', (req, res) => {
 
     res.json({ challenge: body.challenge });
     return;
+    /*
+     * Main command entry point
+     */
   } else if (body.command === '/social-lunch') {
-    const usersRef = ref.child('users');
-    const lunchDate = getNextLunchDate();
-
-    // if (body.text === 'join') {
-    //   usersRef.child(body.user_id).set('');
-    //   const resBody = {
-    //     text: getJoinResponseText(lunchDate)
-    //   }
-    //   res.send(resBody);
-
-    // } else if (body.text === 'cancel') {
-    //   usersRef.child(body.user_id).set(null);
-    //   const resBody = {
-    //     text: getCancelResponseText(lunchDate)
-    //   }
-    //   res.send(resBody);
-
-    // } else {
-      usersRef.once("value", function (data) {
-        const users = data.toJSON();
-        const userIds = Object.keys(users);
-        const numUsers = userIds.length;
-        const hasUserJoined = userIds.includes(body.user_id);
-        console.log(userIds, body.user_id);
-        const resBody = {
-          text: hasUserJoined ? getJoinedStatusText(lunchDate, numUsers) : getBasicStatusText(lunchDate, numUsers)
-        }
-        res.send();
-
-        fetch(body.response_url, {
-          method: 'POST',
-          headers: {
-            'Content-type': 'application/json'
-          },
-          body: JSON.stringify(getStatus())
-        });
-      });
-    // }
+    // res.json({
+    //   text: 'Processing your request :fidget-spinner:'
+    // });
+    res.send();
+    const statusBody = await getStatusBody(body.user_id);
+    statusBody.replace_original = true;
+    console.log(statusBody);
+    sendSlackRequest(body.response_url, statusBody);
   } else {
     console.log(body);
     res.send();
   }
 });
 
+/*
+ * After pressing a button in one of the Bot messages (Join or Cancel)
+ */
+app.post('/action', async (req, res) => {
+  const { body } = req;
+  // res.json({
+  //   text: 'Processing your action request :fidget-spinner:'
+  // });
+  res.send();
+
+  console.log('BODY', body);
+  const payload = body.payload ? JSON.parse(body.payload) : {};
+  console.log('PAYLOAD', payload);
+
+  if (payload.type === 'interactive_message' && payload.actions && payload.actions[0]) {
+    const action = payload.actions[0];
+    if (action.name === 'lunch' && action.value === 'join') {
+      console.log('JOINED');
+      sendSlackRequest(payload.response_url, {
+        text: 'JOINED!'
+      });
+    } else if (action.name === 'lunch' && action.value === 'cancel') {
+      console.log('CANCELED');
+      sendSlackRequest(payload.response_url, {
+        text: 'CANCELED!'
+      });
+    } else {
+      console.log('INVALID');
+    }
+
+
+    console.log('ACTION', action);
+  } else {
+    console.log('INVALID');
+  }
+});
+
 app.listen(8000, () => console.log('Example app listening on port 8000!'));
 
-const getStatus = () => {
-  return {
-    text: getBasicStatusText(),
-    attachments: [
-      buildActionsAttachment()
-    ]
-  };
+
+// ---------------
+
+
+const sendSlackRequest = (responseUrl, bodyObj) => {
+  fetch(responseUrl, {
+    method: 'POST',
+    headers: {
+      'Content-type': 'application/json'
+    },
+    body: JSON.stringify(bodyObj)
+  });
+};
+
+
+const getStatusBody = async (userId) => {
+  const lunchDate = getNextLunchDate();
+  const users = await getUsers();
+
+  const userIds = Object.keys(users);
+  const numUsers = userIds.length;
+  const hasUserJoined = userIds.includes(userId);
+  console.log(userIds, userId);
+  const body = hasUserJoined ?
+    {
+      text: getJoinedStatusText(lunchDate, numUsers),
+      attachments: [buildJoinedStatusAttachment()]
+    } :
+    {
+      text: getBasicStatusText(lunchDate, numUsers),
+      attachments: [buildBasicStatusAttachment()]
+    }
+
+  return body;
 }
 
-const buildActionsAttachment = () => (
+// DB 
+
+const getUsers = () => {
+  const usersRef = database.ref().child('users');
+  return new Promise((resolve, reject) => {
+    usersRef.once("value", function (data) {
+      const users = data.toJSON();
+      resolve(users);
+    });
+  })
+};
+
+// ---
+
+const buildJoinedStatusAttachment = () => (
+  buildAttachmentWithActions([
+    {
+      "name": "lunch",
+      "text": "Cancel",
+      "style": "danger",
+      "type": "button",
+      "value": "cancel",
+      "confirm": {
+        "title": "Are you sure you want to cancel?",
+        "text": "Do it for the kids",
+        "ok_text": "Yes",
+        "dismiss_text": "No"
+      }
+    }
+  ])
+);
+
+const buildBasicStatusAttachment = () => (
+  buildAttachmentWithActions([
+    {
+      "name": "lunch",
+      "text": "Join",
+      "style": "primary",
+      "type": "button",
+      "value": "join"
+    },
+  ])
+);
+
+const buildAttachmentWithActions = actions => (
   {
     "text": "Actions",
     "fallback": "You are unable to perform an action",
     "callback_id": "wopr_game",
     "color": "#3AA3E3",
     "attachment_type": "default",
-    "actions": [
-      {
-        "name": "game",
-        "text": "Join",
-        "type": "button",
-        "value": "join"
-      },
-      {
-        "name": "game",
-        "text": "Cancel",
-        "style": "danger",
-        "type": "button",
-        "value": "cancel",
-        "confirm": {
-          "title": "Are you sure you want to cancel?",
-          "text": "Do it for the kids",
-          "ok_text": "Yes",
-          "dismiss_text": "No"
-        }
-      }
-    ]
+    "actions": actions
   }
 );
 
@@ -135,32 +196,15 @@ ${getNumUsersText(numUsers)}
 );
 
 const getJoinedStatusText = (lunchDate, numUsers) => (
-  `:feelsgoodman: You have already joined the next social lunch which will happen on *${lunchDate.format('dddd D.M')}*!
+  `:feelsgoodman: You have joined the next social lunch which will happen on *${lunchDate.format('dddd D.M')}*!
 ${getNumUsersText(numUsers)}
 
-${getUsageText()}
+I'll post a list with the lunch groups when the time comes.
 `
-);
-
-const getJoinResponseText = lunchDate => (
-  `:feelsgoodman: Yay, you have joined the next social lunch which will happen on *${lunchDate.format('dddd D.M')}*!`
-);
-
-const getCancelResponseText = (lunchDate) => (
-  `:feelsbadman: You have decided to cancel the next social lunch which will happen on *${lunchDate.format('dddd D.M')}*.
-Please, reconsider your decision, do it for the kids.`
 );
 
 const getNumUsersText = numUsers => (
   `There are *${numUsers}* people waiting for the next lunch!`
-);
-
-const getUsageText = () => (
-  `Usage:
-    */social-lunch*          Show status and display the next lunch date
-    */social-lunch join*     Join the next lunch event. I'll inform you who are your lunch mates
-    */social-lunch cancel*   Cancel the event you joined
-  `
 );
 
 const getNextLunchDate = () => {
