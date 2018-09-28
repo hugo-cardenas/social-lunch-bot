@@ -3,8 +3,17 @@ const bodyParser = require('body-parser');
 const firebase = require('firebase-admin');
 const moment = require('moment');
 const fetch = require('node-fetch');
+const shuffle = require('array-shuffle');
 
 const slackToken = process.env.SLACK_TOKEN;
+
+const {
+  buildCancelActionAttachment,
+  buildJoinActionAttachment,
+  getBasicStatusText,
+  getJoinedStatusText,
+  getLeftStatusText
+} = require('./message');
 
 const app = express();
 app.use(bodyParser.json());
@@ -22,9 +31,11 @@ firebase.initializeApp({
 
 const database = firebase.app().database();
 
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
   console.log('GET');
   res.send('Hello World!');
+
+  generateLunchGroups();
 });
 
 app.post('/', async (req, res) => {
@@ -42,11 +53,8 @@ app.post('/', async (req, res) => {
      * Main command entry point
      */
   } else if (body.command === '/social-lunch') {
-    // res.json({
-    //   text: 'Processing your request :fidget-spinner:'
-    // });
     res.send();
-    const statusBody = await getStatusBody(body.user_id);
+    const statusBody = await getStatus(body.user_id);
     statusBody.replace_original = true;
     console.log(statusBody);
     sendSlackRequest(body.response_url, statusBody);
@@ -60,40 +68,31 @@ app.post('/', async (req, res) => {
  * After pressing a button in one of the Bot messages (Join or Cancel)
  */
 app.post('/action', async (req, res) => {
-  const { body } = req;
-  // res.json({
-  //   text: 'Processing your action request :fidget-spinner:'
-  // });
   res.send();
 
+  const { body } = req;
   console.log('BODY', body);
   const payload = body.payload ? JSON.parse(body.payload) : {};
-  console.log('PAYLOAD', payload);
-
+  
   if (payload.type === 'interactive_message' && payload.actions && payload.actions[0]) {
     const action = payload.actions[0];
     if (action.name === 'lunch' && action.value === 'join') {
       console.log('JOINED');
-      sendSlackRequest(payload.response_url, {
-        text: 'JOINED!'
-      });
-    } else if (action.name === 'lunch' && action.value === 'cancel') {
+
+      const body = await join(payload.user.id);
+      sendSlackRequest(payload.response_url, body);
+
+    } else if (action.name === 'lunch' && action.value === 'leave') {
       console.log('CANCELED');
-      sendSlackRequest(payload.response_url, {
-        text: 'CANCELED!'
-      });
-    } else {
-      console.log('INVALID');
+      
+      const body = await leave(payload.user.id);
+      sendSlackRequest(payload.response_url, body);
+
     }
-
-
-    console.log('ACTION', action);
-  } else {
-    console.log('INVALID');
   }
 });
 
-app.listen(8000, () => console.log('Example app listening on port 8000!'));
+app.listen(8000, () => console.log('App listening on port 8000!'));
 
 
 // ---------------
@@ -110,9 +109,9 @@ const sendSlackRequest = (responseUrl, bodyObj) => {
 };
 
 
-const getStatusBody = async (userId) => {
+const getStatus = async userId => {
   const lunchDate = getNextLunchDate();
-  const users = await getUsers();
+  const users = await getJoinedUsers();
 
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
@@ -121,20 +120,55 @@ const getStatusBody = async (userId) => {
   const body = hasUserJoined ?
     {
       text: getJoinedStatusText(lunchDate, numUsers),
-      attachments: [buildJoinedStatusAttachment()]
+      attachments: [buildCancelActionAttachment()]
     } :
     {
       text: getBasicStatusText(lunchDate, numUsers),
-      attachments: [buildBasicStatusAttachment()]
+      attachments: [buildJoinActionAttachment()]
     }
 
   return body;
 }
 
+const join = async userId => {
+  await addUser(userId);
+
+  const lunchDate = getNextLunchDate();
+  const users = await getJoinedUsers();
+
+  const userIds = Object.keys(users);
+  const numUsers = userIds.length;
+
+  return {
+    text: getJoinedStatusText(lunchDate, numUsers)
+  };
+};
+
+const leave = async userId => {
+  await removeUser(userId);
+  
+  const lunchDate = getNextLunchDate();
+  const users = await getJoinedUsers();
+
+  const userIds = Object.keys(users);
+  const numUsers = userIds.length;
+
+  return {
+    text: getLeftStatusText(lunchDate, numUsers),
+    attachments: [buildJoinActionAttachment()]
+  };
+};
+
+const getSlackUsers = () => {
+  fetch()
+}
+
 // DB 
 
-const getUsers = () => {
-  const usersRef = database.ref().child('users');
+const getUsersRef = () => database.ref('users');
+
+const getJoinedUsers = () => {
+  const usersRef = getUsersRef();
   return new Promise((resolve, reject) => {
     usersRef.once("value", function (data) {
       const users = data.toJSON();
@@ -143,69 +177,15 @@ const getUsers = () => {
   })
 };
 
-// ---
-
-const buildJoinedStatusAttachment = () => (
-  buildAttachmentWithActions([
-    {
-      "name": "lunch",
-      "text": "Cancel",
-      "style": "danger",
-      "type": "button",
-      "value": "cancel",
-      "confirm": {
-        "title": "Are you sure you want to cancel?",
-        "text": "Do it for the kids",
-        "ok_text": "Yes",
-        "dismiss_text": "No"
-      }
-    }
-  ])
+const addUser = userId => (
+  getUsersRef().child(userId).set(true)
 );
 
-const buildBasicStatusAttachment = () => (
-  buildAttachmentWithActions([
-    {
-      "name": "lunch",
-      "text": "Join",
-      "style": "primary",
-      "type": "button",
-      "value": "join"
-    },
-  ])
+const removeUser = userId => (
+  getUsersRef().child(userId).remove()
 );
 
-const buildAttachmentWithActions = actions => (
-  {
-    "text": "Actions",
-    "fallback": "You are unable to perform an action",
-    "callback_id": "wopr_game",
-    "color": "#3AA3E3",
-    "attachment_type": "default",
-    "actions": actions
-  }
-);
-
-const getBasicStatusText = (lunchDate, numUsers) => (
-  `:wave: Hi there! [UNDER CONSTRUCTION]
-
-I'll organize for you a social lunch by putting you together with 2 other random coworkers :awesome: 
-Next lunch date is *${lunchDate.format('dddd D.M')}*
-${getNumUsersText(numUsers)}
-`
-);
-
-const getJoinedStatusText = (lunchDate, numUsers) => (
-  `:feelsgoodman: You have joined the next social lunch which will happen on *${lunchDate.format('dddd D.M')}*!
-${getNumUsersText(numUsers)}
-
-I'll post a list with the lunch groups when the time comes.
-`
-);
-
-const getNumUsersText = numUsers => (
-  `There are *${numUsers}* people waiting for the next lunch!`
-);
+// --
 
 const getNextLunchDate = () => {
   let lunchDate = moment();
@@ -222,6 +202,20 @@ const getNextLunchDate = () => {
   return lunchDate;
 }
 
-const generateLunchGroups = () => {
+const generateLunchGroups = async () => {
+  const users = await getJoinedUsers();
+  const userIds = Object.keys(users);
 
+  console.log('IDS', userIds);
+  const shuffledIds = shuffle(userIds);
+  console.log('SHUFFLED IDS', shuffledIds);
+
+  const groups = [];
+  while (shuffledIds.length >= 6) {
+    groups.push(shuffledIds.splice(0, 3));
+  }
+  groups.push(shuffledIds);
+
+  console.log('GROUPS', groups);
+  return groups;
 };
