@@ -4,15 +4,21 @@ const firebase = require('firebase-admin');
 const moment = require('moment');
 const fetch = require('node-fetch');
 const shuffle = require('array-shuffle');
+const { CronJob } = require('cron');
 
 const slackToken = process.env.SLACK_TOKEN;
+
+const PUBLISH_HOUR = 11;
+const LUNCH_DAY = 6;
 
 const {
   buildCancelActionAttachment,
   buildJoinActionAttachment,
   getBasicStatusText,
   getJoinedStatusText,
-  getLeftStatusText
+  getLeftStatusText,
+  getTodayLunchText,
+  getTooLateText
 } = require('./message');
 
 const app = express();
@@ -35,11 +41,15 @@ app.get('/', async (req, res) => {
   console.log('GET');
   res.send('Hello World!');
 
-  generateLunchGroups();
+  // addUser('1024');
+
+  // const groups = await generateLunchGroups(getNextLunchDate());
+  // console.log(groups);
 });
 
 app.post('/', async (req, res) => {
   const { body } = req;
+  console.log(body);
   if (body.type === 'url_verification') {
     // Verify token
     if (body.token !== slackToken) {
@@ -70,11 +80,18 @@ app.post('/', async (req, res) => {
 app.post('/action', async (req, res) => {
   res.send();
 
-  const { body } = req;
+  const { body } = req;
   console.log('BODY', body);
   const payload = body.payload ? JSON.parse(body.payload) : {};
-  
+
   if (payload.type === 'interactive_message' && payload.actions && payload.actions[0]) {
+    if (isLunchDayAfterPublish()) {
+      const body = {
+        text: hasUserJoined ? getTodayLunchText() : getTooLateText()
+      };
+      sendSlackRequest(payload.response_url, body);
+    }
+
     const action = payload.actions[0];
     if (action.name === 'lunch' && action.value === 'join') {
       console.log('JOINED');
@@ -84,7 +101,7 @@ app.post('/action', async (req, res) => {
 
     } else if (action.name === 'lunch' && action.value === 'leave') {
       console.log('CANCELED');
-      
+
       const body = await leave(payload.user.id);
       sendSlackRequest(payload.response_url, body);
 
@@ -92,7 +109,29 @@ app.post('/action', async (req, res) => {
   }
 });
 
+// app.post('/foo', (req, res, next) => handleError(req, res, next, async (req, res) => {
+
+
+
+
+// });
+
 app.listen(8000, () => console.log('App listening on port 8000!'));
+
+// Controllers
+
+const handleError = async (req, res, next, func) => {
+  try {
+    await func(req, res);
+  } catch (error) {
+    next(error);
+  }
+}
+
+const main = () => {
+
+}
+
 
 
 // ---------------
@@ -108,33 +147,35 @@ const sendSlackRequest = (responseUrl, bodyObj) => {
   });
 };
 
-
 const getStatus = async userId => {
   const lunchDate = getNextLunchDate();
-  const users = await getJoinedUsers();
+  const users = await getNextOpenLunchUsers();
 
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
+
   const hasUserJoined = userIds.includes(userId);
-  console.log(userIds, userId);
-  const body = hasUserJoined ?
-    {
+
+  if (isLunchDayAfterPublish()) {
+    return {
+      text: hasUserJoined ? getTodayLunchText() : getTooLateText()
+    };
+  } else {
+    return hasUserJoined ? {
       text: getJoinedStatusText(lunchDate, numUsers),
       attachments: [buildCancelActionAttachment()]
-    } :
-    {
+    } : {
       text: getBasicStatusText(lunchDate, numUsers),
       attachments: [buildJoinActionAttachment()]
     }
-
-  return body;
+  }
 }
 
 const join = async userId => {
   await addUser(userId);
 
   const lunchDate = getNextLunchDate();
-  const users = await getJoinedUsers();
+  const users = await getNextOpenLunchUsers();
 
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
@@ -146,9 +187,9 @@ const join = async userId => {
 
 const leave = async userId => {
   await removeUser(userId);
-  
+
   const lunchDate = getNextLunchDate();
-  const users = await getJoinedUsers();
+  const users = await getNextOpenLunchUsers();
 
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
@@ -165,57 +206,71 @@ const getSlackUsers = () => {
 
 // DB 
 
-const getUsersRef = () => database.ref('users');
+const getUsersRef = date => (
+  console.log(date) ||
+  database.ref(`lunchEvents/${date.format('YYYYMMDD')}/users`)
+);
 
-const getJoinedUsers = () => {
-  const usersRef = getUsersRef();
-  return new Promise((resolve, reject) => {
+const getNextOpenLunchUsersRef = () => (
+  getUsersRef(getNextLunchDate())
+);
+
+const getNextOpenLunchUsers = () => {
+  return getUsers(getNextLunchDate());
+}
+
+const getUsers = date => {
+  const usersRef = getUsersRef(date);
+  return new Promise(resolve => {
     usersRef.once("value", function (data) {
       const users = data.toJSON();
-      resolve(users);
+      resolve(users ? users : []);
     });
   })
 };
 
 const addUser = userId => (
-  getUsersRef().child(userId).set(true)
+  getNextOpenLunchUsersRef().child(userId).set(true)
 );
 
 const removeUser = userId => (
-  getUsersRef().child(userId).remove()
+  getNextOpenLunchUsersRef().child(userId).remove()
 );
 
 // --
 
 const getNextLunchDate = () => {
   let lunchDate = moment();
-  /*
-   * Lunch date should be the upcoming Friday until 11.00
-   * E.g. 
-   *   If now it's Friday 10.00 -> lunch date is today
-   *   If now it's Friday 12.00 -> lunch date is Friday of the next week
-   */
-  while (!(lunchDate.day() === 5 && lunchDate.hour() < 11)) {
+  while (lunchDate.day() !== LUNCH_DAY) {
     lunchDate.add(1, 'days');
     lunchDate.hour(0);
   }
   return lunchDate;
-}
+};
 
-const generateLunchGroups = async () => {
-  const users = await getJoinedUsers();
+const isLunchDayAfterPublish = () => {
+  const now = moment();
+  return now.day() === LUNCH_DAY && now.hour() >= PUBLISH_HOUR;
+};
+
+const generateLunchGroups = async date => {
+  const users = await getUsers(date);
   const userIds = Object.keys(users);
 
-  console.log('IDS', userIds);
   const shuffledIds = shuffle(userIds);
-  console.log('SHUFFLED IDS', shuffledIds);
-
   const groups = [];
   while (shuffledIds.length >= 6) {
     groups.push(shuffledIds.splice(0, 3));
   }
   groups.push(shuffledIds);
 
-  console.log('GROUPS', groups);
   return groups;
 };
+
+// CRON
+
+new CronJob('* * * * * *', async () => {
+  // const groups = await generateLunchGroups(getNextLunchDate());
+  // console.log(groups);
+
+}, null, true, 'Europe/Helsinki');

@@ -1,18 +1,18 @@
 /*
  * The bot will post to this channel the list of groups.
  */
-const slackChannel = 'lunch-suggestions';
+const slackChannel = '#lunch-suggestions';
 
 const buildCancelActionAttachment = () => (
   buildAttachmentWithActions([
     {
       "name": "lunch",
-      "text": "Leave",
+      "text": "Cancel",
       "style": "danger",
       "type": "button",
       "value": "leave",
       "confirm": {
-        "title": "Are you sure you want to leave?",
+        "title": "Are you sure you want to leave the next lunch?",
         "text": "Please, don't do it. Think about the kids.",
         "ok_text": "Yes",
         "dismiss_text": "No"
@@ -44,19 +44,32 @@ const buildAttachmentWithActions = actions => (
 );
 
 const getBasicStatusText = (lunchDate, numUsers) => (
-  `:wave: Hi there! [UNDER CONSTRUCTION]
+  `Hi there! :wave: [UNDER CONSTRUCTION]
 
-I'll organize for you a social lunch by putting you together with 2 other random coworkers :awesome: 
+I'll set you up for a social lunch by shuffling you with 2-4 other random coworkers :awesome: 
 Next lunch date is *${lunchDate.format('dddd D.M')}*
 ${getNumUsersText(numUsers)}
 `
+);
+
+const getTodayLunchText = () => (
+  `This week's lunch day is today :hamburger:
+
+Check the lunch groups published in *${slackChannel}*!`
+);
+
+const getTooLateText = () => (
+  `This week's lunch day is today :hamburger:
+Unfortunately, the groups have already been published in *${slackChannel}*, so it's too late to join this time, sorry.
+
+Run */social-lunch* again after today to join the lunch next week!`
 );
 
 const getJoinedStatusText = (lunchDate, numUsers) => (
   `You have joined the next social lunch on *${lunchDate.format('dddd D.M')}*! :feelsgoodman:
 ${getNumUsersText(numUsers)}
 
-I'll post a list with the lunch groups to *#${slackChannel}* when the time comes.
+I'll post a list with the lunch groups to *${slackChannel}* on *${lunchDate.format('dddd D.M')} at 11.00*.
 `
 );
 
@@ -77,5 +90,7 @@ module.exports = {
   buildJoinActionAttachment,
   getBasicStatusText,
   getJoinedStatusText,
-  getLeftStatusText
+  getLeftStatusText,
+  getTodayLunchText,
+  getTooLateText
 };
