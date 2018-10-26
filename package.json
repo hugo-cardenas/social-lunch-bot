@@ -15,6 +15,11 @@
     "express": "^4.16.3",
     "firebase-admin": "^6.0.0",
     "moment": "^2.22.2",
-    "node-fetch": "^2.2.0"
+    "node-fetch": "^2.2.0",
+    "qs": "^6.5.2"
+  },
+  "now": {
+    "name": "social-lunch-bot",
+    "alias": "social-lunch-bot.now.sh"
   }
 }

@@ -12,7 +12,7 @@ const buildCancelActionAttachment = () => (
       "type": "button",
       "value": "leave",
       "confirm": {
-        "title": "Are you sure you want to leave the next lunch?",
+        "title": "Are you sure you want to cancel?",
         "text": "Please, don't do it. Think about the kids.",
         "ok_text": "Yes",
         "dismiss_text": "No"
@@ -48,8 +48,7 @@ const getBasicStatusText = (lunchDate, numUsers) => (
 
 I'll set you up for a social lunch by shuffling you with 2-4 other random coworkers :awesome: 
 Next lunch date is *${lunchDate.format('dddd D.M')}*
-${getNumUsersText(numUsers)}
-`
+${getNumUsersText(numUsers)}`
 );
 
 const getTodayLunchText = () => (
@@ -68,7 +67,6 @@ Run */social-lunch* again after today to join the lunch next week!`
 const getJoinedStatusText = (lunchDate, numUsers) => (
   `You have joined the next social lunch on *${lunchDate.format('dddd D.M')}*! :feelsgoodman:
 ${getNumUsersText(numUsers)}
-
 I'll post a list with the lunch groups to *${slackChannel}* on *${lunchDate.format('dddd D.M')} at 11.00*.
 `
 );
@@ -76,13 +74,14 @@ I'll post a list with the lunch groups to *${slackChannel}* on *${lunchDate.form
 const getLeftStatusText = (lunchDate, numUsers) => (
   `You have left the next social lunch on *${lunchDate.format('dddd D.M')}* :feelsbadman:
 ${getNumUsersText(numUsers)}
-
 Please, reconsider your decision.
 `
 );
 
 const getNumUsersText = numUsers => (
-  `There are *${numUsers}* people waiting for the next lunch!`
+  numUsers > 0 ? 
+  `There are *${numUsers}* people waiting for the next lunch!` + '\n' :
+  ''
 );
 
 module.exports = {

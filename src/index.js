@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+const qs = require('qs');
 const express = require('express');
 const bodyParser = require('body-parser');
 const firebase = require('firebase-admin');
@@ -7,6 +9,7 @@ const shuffle = require('array-shuffle');
 const { CronJob } = require('cron');
 
 const slackToken = process.env.SLACK_TOKEN;
+const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
 
 const PUBLISH_HOUR = 11;
 const LUNCH_DAY = 6;
@@ -37,40 +40,22 @@ firebase.initializeApp({
 
 const database = firebase.app().database();
 
-app.get('/', async (req, res) => {
-  console.log('GET');
-  res.send('Hello World!');
-
-  // addUser('1024');
-
-  // const groups = await generateLunchGroups(getNextLunchDate());
-  // console.log(groups);
-});
-
-app.post('/', async (req, res) => {
-  const { body } = req;
-  console.log(body);
-  if (body.type === 'url_verification') {
-    // Verify token
-    if (body.token !== slackToken) {
-      res.status(400).send('Invalid token');
-      return;
+app.post('/', async (req, res, next) => {
+  try {
+    verifySignature(req);
+    const { body } = req;
+    console.log('BODY', body);
+    console.log('HEADERS', req.headers);
+    if (body.command === '/social-lunch') {
+      res.send();
+      const statusBody = await getStatus(body.user_id);
+      statusBody.replace_original = true;
+      sendSlackRequest(body.response_url, statusBody);
+    } else {
+      throw new Error('Invalid command');
     }
-
-    res.json({ challenge: body.challenge });
-    return;
-    /*
-     * Main command entry point
-     */
-  } else if (body.command === '/social-lunch') {
-    res.send();
-    const statusBody = await getStatus(body.user_id);
-    statusBody.replace_original = true;
-    console.log(statusBody);
-    sendSlackRequest(body.response_url, statusBody);
-  } else {
-    console.log(body);
-    res.send();
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -78,64 +63,79 @@ app.post('/', async (req, res) => {
  * After pressing a button in one of the Bot messages (Join or Cancel)
  */
 app.post('/action', async (req, res) => {
-  res.send();
-
-  const { body } = req;
-  console.log('BODY', body);
-  const payload = body.payload ? JSON.parse(body.payload) : {};
-
-  if (payload.type === 'interactive_message' && payload.actions && payload.actions[0]) {
-    if (isLunchDayAfterPublish()) {
-      const body = {
-        text: hasUserJoined ? getTodayLunchText() : getTooLateText()
-      };
-      sendSlackRequest(payload.response_url, body);
-    }
-
-    const action = payload.actions[0];
-    if (action.name === 'lunch' && action.value === 'join') {
-      console.log('JOINED');
-
-      const body = await join(payload.user.id);
-      sendSlackRequest(payload.response_url, body);
-
-    } else if (action.name === 'lunch' && action.value === 'leave') {
-      console.log('CANCELED');
-
-      const body = await leave(payload.user.id);
-      sendSlackRequest(payload.response_url, body);
-
-    }
-  }
-});
-
-// app.post('/foo', (req, res, next) => handleError(req, res, next, async (req, res) => {
-
-
-
-
-// });
-
-app.listen(8000, () => console.log('App listening on port 8000!'));
-
-// Controllers
-
-const handleError = async (req, res, next, func) => {
   try {
-    await func(req, res);
+    verifySignature(req);
+
+    res.send();
+    const { body } = req;
+    console.log('BODY', body);
+    console.log('HEADERS', req.headers);
+
+    const payload = body.payload ? JSON.parse(body.payload) : {};
+    if (payload.type === 'interactive_message' && payload.actions && payload.actions[0]) {
+      if (isLunchDayAfterPublish()) {
+        console.log('LUNCH DAY AFTER PUBLISH');
+        const body = {
+          text: hasUserJoined ? getTodayLunchText() : getTooLateText()
+        };
+        sendSlackRequest(payload.response_url, body);
+        return;
+      }
+
+      const action = payload.actions[0];
+      if (action.name === 'lunch' && action.value === 'join') {
+        console.log('JOINED');
+        const body = await join(payload.user.id);
+        sendSlackRequest(payload.response_url, body);
+        return;
+
+      } else if (action.name === 'lunch' && action.value === 'leave') {
+        console.log('CANCELED');
+        const body = await leave(payload.user.id);
+        sendSlackRequest(payload.response_url, body);
+        return;
+      }
+    }
   } catch (error) {
     next(error);
   }
-}
+});
 
-const main = () => {
-
-}
-
-
+app.listen(8000, () => console.log('App listening on port 8000!'));
 
 // ---------------
 
+const verifySignature = req => {
+  const slackSignature = req.headers['x-slack-signature'];
+  const rawBody = qs.stringify(req.body, { format: 'RFC1738' });
+  const timestamp = req.headers['x-slack-request-timestamp'];
+
+  var currentTime = Math.floor(new Date().getTime() / 1000);
+  if (Math.abs(currentTime - timestamp) > 60 * 5) {
+    /*
+     * The request timestamp is more than five minutes from local time.
+     * It could be a replay attack, so let's ignore it.
+     */
+    throw new Error('Request timestamp is more than 5min difference from local time');
+  }
+
+  if (!slackSigningSecret) {
+    throw new Error('Empty Slack signing secret');
+  }
+
+  const signatureBaseString = `v0:${timestamp}:${rawBody}`;
+  const mySignature = 'v0=' +
+    crypto.createHmac('sha256', slackSigningSecret)
+      .update(signatureBaseString, 'utf8')
+      .digest('hex');
+
+  if (!crypto.timingSafeEqual(
+    Buffer.from(mySignature, 'utf8'),
+    Buffer.from(slackSignature, 'utf8'))
+  ) {
+    throw new Error('Signature verification failed');
+  }
+};
 
 const sendSlackRequest = (responseUrl, bodyObj) => {
   fetch(responseUrl, {
@@ -165,9 +165,9 @@ const getStatus = async userId => {
       text: getJoinedStatusText(lunchDate, numUsers),
       attachments: [buildCancelActionAttachment()]
     } : {
-      text: getBasicStatusText(lunchDate, numUsers),
-      attachments: [buildJoinActionAttachment()]
-    }
+        text: getBasicStatusText(lunchDate, numUsers),
+        attachments: [buildJoinActionAttachment()]
+      }
   }
 }
 
@@ -181,7 +181,8 @@ const join = async userId => {
   const numUsers = userIds.length;
 
   return {
-    text: getJoinedStatusText(lunchDate, numUsers)
+    text: getJoinedStatusText(lunchDate, numUsers),
+    attachments: [buildCancelActionAttachment()]
   };
 };
 
