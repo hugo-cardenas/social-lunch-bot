@@ -8,11 +8,11 @@ const fetch = require('node-fetch');
 const shuffle = require('array-shuffle');
 const { CronJob } = require('cron');
 
-const slackToken = process.env.SLACK_TOKEN;
 const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
 
 const PUBLISH_HOUR = 11;
-const LUNCH_DAY = 6;
+// 0 is Sunday
+const LUNCH_DAY = 4;
 
 const {
   buildCancelActionAttachment,
@@ -21,7 +21,8 @@ const {
   getJoinedStatusText,
   getLeftStatusText,
   getTodayLunchText,
-  getTooLateText
+  getTooLateText,
+  getGroupListMessage
 } = require('./message');
 
 const app = express();
@@ -40,6 +41,18 @@ firebase.initializeApp({
 
 const database = firebase.app().database();
 
+app.get('/', async (req, res) => {
+  // const url = 'https://hooks.slack.com/services/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';
+  // return sendSlackRequest(url, {
+  //   text: 'Foo <#C6N8X0SUV|helsinki_general>'
+  // });
+
+  // sendGroupsMessage();
+  // generateGroupsAndSendMessage();
+
+  // console.log(isLunchDayAfterPublish());
+});
+
 app.post('/', async (req, res, next) => {
   try {
     verifySignature(req);
@@ -48,9 +61,19 @@ app.post('/', async (req, res, next) => {
     console.log('HEADERS', req.headers);
     if (body.command === '/social-lunch') {
       res.send();
-      const statusBody = await getStatus(body.user_id);
-      statusBody.replace_original = true;
-      sendSlackRequest(body.response_url, statusBody);
+
+      if (body.text === 'groups') {
+        // List lunch groups if already generated for today
+        if (isLunchDayAfterPublish()) {
+          readGroupsAndSendMessage(getNextLunchDate());
+        }
+      } else {
+        // Default functionality
+        const statusBody = await getStatus(body.user_id);
+        statusBody.replace_original = true;
+        sendSlackRequest(body.response_url, statusBody);
+      }
+
     } else {
       throw new Error('Invalid command');
     }
@@ -205,11 +228,16 @@ const getSlackUsers = () => {
   fetch()
 }
 
-// DB 
+// ------ DB ---------
 
 const getUsersRef = date => (
   console.log(date) ||
   database.ref(`lunchEvents/${date.format('YYYYMMDD')}/users`)
+);
+
+const getGroupsRef = date => (
+  console.log(date) ||
+  database.ref(`lunchEvents/${date.format('YYYYMMDD')}/groups`)
 );
 
 const getNextOpenLunchUsersRef = () => (
@@ -227,7 +255,7 @@ const getUsers = date => {
       const users = data.toJSON();
       resolve(users ? users : []);
     });
-  })
+  });
 };
 
 const addUser = userId => (
@@ -238,7 +266,22 @@ const removeUser = userId => (
   getNextOpenLunchUsersRef().child(userId).remove()
 );
 
-// --
+const saveGroups = (date, groups) => {
+  const groupsRef = getGroupsRef(date);
+  return groupsRef.set(groups);
+};
+
+const getGroups = date => {
+  const groupsRef = getGroupsRef(date);
+  return new Promise(resolve => {
+    groupsRef.once("value", function (data) {
+      const groups = data.val();
+      resolve(groups ? groups : []);
+    });
+  });
+};
+
+// ----------------
 
 const getNextLunchDate = () => {
   let lunchDate = moment();
@@ -268,10 +311,30 @@ const generateLunchGroups = async date => {
   return groups;
 };
 
-// CRON
+// -------- CRON ------------
 
-new CronJob('* * * * * *', async () => {
-  // const groups = await generateLunchGroups(getNextLunchDate());
-  // console.log(groups);
+const generateGroupsAndSendMessage = async () => {
+  // TODO Add retries if failure for these actions
+  const date = getNextLunchDate();
+  const groups = await generateLunchGroups(date);
+  await saveGroups(date, groups);
+  sendGroupsMessage(groups, date);
+}
 
+const readGroupsAndSendMessage = async date => {
+  const groups = await getGroups(date);
+  sendGroupsMessage(groups, date);
+}
+
+const sendGroupsMessage = (groups, date) => {
+  const message = getGroupListMessage(groups, date);
+  const url = 'https://hooks.slack.com/services/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';
+  return sendSlackRequest(url, {
+    text: message
+  });
+}
+
+new CronJob(`0 0 ${PUBLISH_HOUR} * * ${LUNCH_DAY}`, async () => {
+  generateGroupsAndSendMessage();
 }, null, true, 'Europe/Helsinki');
+

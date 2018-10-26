@@ -1,7 +1,7 @@
 /*
  * The bot will post to this channel the list of groups.
  */
-const slackChannel = '#lunch-suggestions';
+const slackChannel = '<#C6N8X0SUV|helsinki_general>';
 
 const buildCancelActionAttachment = () => (
   buildAttachmentWithActions([
@@ -44,9 +44,9 @@ const buildAttachmentWithActions = actions => (
 );
 
 const getBasicStatusText = (lunchDate, numUsers) => (
-  `Hi there! :wave: [UNDER CONSTRUCTION]
+  `Hi there! :wave:
 
-I'll set you up for a social lunch by shuffling you with 2-4 other random coworkers :awesome: 
+I'll set you up for a social lunch shuffling you with 2-4 other random coworkers :awesome: 
 Next lunch date is *${lunchDate.format('dddd D.M')}*
 ${getNumUsersText(numUsers)}`
 );
@@ -54,25 +54,25 @@ ${getNumUsersText(numUsers)}`
 const getTodayLunchText = () => (
   `This week's lunch day is today :hamburger:
 
-Check the lunch groups published in *${slackChannel}*!`
+Check the lunch groups published in ${slackChannel}!`
 );
 
 const getTooLateText = () => (
   `This week's lunch day is today :hamburger:
-Unfortunately, the groups have already been published in *${slackChannel}*, so it's too late to join this time, sorry.
+Unfortunately, the lunch groups have already been generated (check ${slackChannel}), so it's too late to join this time, sorry.
 
 Run */social-lunch* again after today to join the lunch next week!`
 );
 
 const getJoinedStatusText = (lunchDate, numUsers) => (
-  `You have joined the next social lunch on *${lunchDate.format('dddd D.M')}*! :feelsgoodman:
+  `You have joined the next lunch on *${lunchDate.format('dddd D.M')}*! :feelsgoodman:
 ${getNumUsersText(numUsers)}
-I'll post a list with the lunch groups to *${slackChannel}* on *${lunchDate.format('dddd D.M')} at 11.00*.
+I'll post a list with the lunch groups to ${slackChannel} on *${lunchDate.format('dddd D.M')} at 11.00*.
 `
 );
 
 const getLeftStatusText = (lunchDate, numUsers) => (
-  `You have left the next social lunch on *${lunchDate.format('dddd D.M')}* :feelsbadman:
+  `You have left the next lunch on *${lunchDate.format('dddd D.M')}* :feelsbadman:
 ${getNumUsersText(numUsers)}
 Please, reconsider your decision.
 `
@@ -84,6 +84,18 @@ const getNumUsersText = numUsers => (
   ''
 );
 
+const getGroupListMessage = (userGroups, lunchDate) => {
+  return `These are the lunch groups for today, *${lunchDate.format('dddd D.M')}*:` + '\n\n' +
+    userGroups.map((group, i) => {
+      return `*Group ${i + 1}:*` + '\n' + 
+        group.map(userId => `<@${userId}>`).join('\n') + 
+        '\n';
+    })
+    .join('\n') +
+    '\n' +
+    'Have fun! :awesome:'
+};
+
 module.exports = {
   buildCancelActionAttachment,
   buildJoinActionAttachment,
@@ -91,5 +103,6 @@ module.exports = {
   getJoinedStatusText,
   getLeftStatusText,
   getTodayLunchText,
-  getTooLateText
+  getTooLateText,
+  getGroupListMessage
 };
