@@ -51,6 +51,17 @@ Next lunch date is *${lunchDate.format('dddd D.M')}*
 ${getNumUsersText(numUsers)}`
 );
 
+const getReminderText = (lunchDate, numUsers) => (
+  `Hi all! :wave:
+
+Remember, I'm arranging once every week an exciting lunch event, shuffling people in groups of 3-5 random coworkers who will go together for lunch :awesome:
+Next lunch date is *${lunchDate.format('dddd D.M')}*
+${getNumUsersText(numUsers)}
+
+Join now by running the command */social-lunch*!
+(you can run it in your private Slack channel - no one will see it except you)`
+);
+
 const getTodayLunchText = () => (
   `This week's lunch day is today :hamburger:
 
@@ -79,7 +90,7 @@ Please, reconsider your decision.
 );
 
 const getNumUsersText = numUsers => (
-  numUsers > 0 ? 
+  numUsers > 6 ? 
   `There are *${numUsers}* people waiting for the next lunch!` + '\n' :
   ''
 );
@@ -100,6 +111,7 @@ module.exports = {
   buildCancelActionAttachment,
   buildJoinActionAttachment,
   getBasicStatusText,
+  getReminderText,
   getJoinedStatusText,
   getLeftStatusText,
   getTodayLunchText,

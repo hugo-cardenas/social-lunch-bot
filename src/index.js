@@ -9,15 +9,17 @@ const shuffle = require('array-shuffle');
 const { CronJob } = require('cron');
 
 const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
+const publishChannelUrl = process.env.PUBLISH_CHANNEL_URL;
 
 const PUBLISH_HOUR = 11;
 // 0 is Sunday
-const LUNCH_DAY = 4;
+const LUNCH_DAY = 5;
 
 const {
   buildCancelActionAttachment,
   buildJoinActionAttachment,
   getBasicStatusText,
+  getReminderText,
   getJoinedStatusText,
   getLeftStatusText,
   getTodayLunchText,
@@ -42,15 +44,7 @@ firebase.initializeApp({
 const database = firebase.app().database();
 
 app.get('/', async (req, res) => {
-  // const url = 'https://hooks.slack.com/services/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';
-  // return sendSlackRequest(url, {
-  //   text: 'Foo <#C6N8X0SUV|helsinki_general>'
-  // });
-
-  // sendGroupsMessage();
-  // generateGroupsAndSendMessage();
-
-  // console.log(isLunchDayAfterPublish());
+  // sendReminder();
 });
 
 app.post('/', async (req, res, next) => {
@@ -149,13 +143,12 @@ const verifySignature = req => {
   const signatureBaseString = `v0:${timestamp}:${rawBody}`;
   const mySignature = 'v0=' +
     crypto.createHmac('sha256', slackSigningSecret)
-      .update(signatureBaseString, 'utf8')
-      .digest('hex');
+    .update(signatureBaseString, 'utf8')
+    .digest('hex');
 
   if (!crypto.timingSafeEqual(
-    Buffer.from(mySignature, 'utf8'),
-    Buffer.from(slackSignature, 'utf8'))
-  ) {
+      Buffer.from(mySignature, 'utf8'),
+      Buffer.from(slackSignature, 'utf8'))) {
     throw new Error('Signature verification failed');
   }
 };
@@ -188,9 +181,9 @@ const getStatus = async userId => {
       text: getJoinedStatusText(lunchDate, numUsers),
       attachments: [buildCancelActionAttachment()]
     } : {
-        text: getBasicStatusText(lunchDate, numUsers),
-        attachments: [buildJoinActionAttachment()]
-      }
+      text: getBasicStatusText(lunchDate, numUsers),
+      attachments: [buildJoinActionAttachment()]
+    }
   }
 }
 
@@ -328,13 +321,22 @@ const readGroupsAndSendMessage = async date => {
 
 const sendGroupsMessage = (groups, date) => {
   const message = getGroupListMessage(groups, date);
-  const url = 'https://hooks.slack.com/services/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';
-  return sendSlackRequest(url, {
+  return sendSlackRequest(publishChannelUrl, {
     text: message
+  });
+}
+
+const sendReminder = async () => {
+  const date = getNextLunchDate();
+  const users = await getNextOpenLunchUsers();
+  const userIds = Object.keys(users);
+  const numUsers = userIds.length;
+
+  return sendSlackRequest(publishChannelUrl, {
+    text: getReminderText(date, numUsers)
   });
 }
 
 new CronJob(`0 0 ${PUBLISH_HOUR} * * ${LUNCH_DAY}`, async () => {
   generateGroupsAndSendMessage();
 }, null, true, 'Europe/Helsinki');
-
