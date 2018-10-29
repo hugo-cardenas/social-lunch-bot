@@ -46,7 +46,7 @@ const buildAttachmentWithActions = actions => (
 const getBasicStatusText = (lunchDate, numUsers) => (
   `Hi there! :wave:
 
-I'll set you up for a social lunch shuffling you with 2-4 other random coworkers :awesome: 
+I'll set you up for an exciting lunch together with 2-4 other random coworkers :awesome: 
 Next lunch date is *${lunchDate.format('dddd D.M')}*
 ${getNumUsersText(numUsers)}`
 );

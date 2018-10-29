@@ -122,6 +122,10 @@ app.listen(8000, () => console.log('App listening on port 8000!'));
 
 // ---------------
 
+/*
+ * Verify signature in Slack requests
+ * https://api.slack.com/docs/verifying-requests-from-slack
+ */
 const verifySignature = req => {
   const slackSignature = req.headers['x-slack-signature'];
   const rawBody = qs.stringify(req.body, { format: 'RFC1738' });
@@ -216,10 +220,6 @@ const leave = async userId => {
     attachments: [buildJoinActionAttachment()]
   };
 };
-
-const getSlackUsers = () => {
-  fetch()
-}
 
 // ------ DB ---------
 
