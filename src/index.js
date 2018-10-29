@@ -1,20 +1,9 @@
-const crypto = require('crypto');
-const qs = require('qs');
 const express = require('express');
 const bodyParser = require('body-parser');
 const firebase = require('firebase-admin');
 const moment = require('moment');
 const fetch = require('node-fetch');
-const shuffle = require('array-shuffle');
 const { CronJob } = require('cron');
-
-const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
-const publishChannelUrl = process.env.PUBLISH_CHANNEL_URL;
-
-const PUBLISH_HOUR = 11;
-// 0 is Sunday
-const LUNCH_DAY = 5;
-
 const {
   buildCancelActionAttachment,
   buildJoinActionAttachment,
@@ -26,6 +15,15 @@ const {
   getTooLateText,
   getGroupListMessage
 } = require('./message');
+const createGroups = require('./createGroups');
+const verifySignature = require('./verifySignature');
+
+const publishChannelUrl = process.env.PUBLISH_CHANNEL_URL;
+
+const PUBLISH_HOUR = 11;
+// 0 is Sunday
+const LUNCH_DAY = 5;
+
 
 const app = express();
 app.use(bodyParser.json());
@@ -121,41 +119,6 @@ app.post('/action', async (req, res) => {
 app.listen(8000, () => console.log('App listening on port 8000!'));
 
 // ---------------
-
-/*
- * Verify signature in Slack requests
- * https://api.slack.com/docs/verifying-requests-from-slack
- */
-const verifySignature = req => {
-  const slackSignature = req.headers['x-slack-signature'];
-  const rawBody = qs.stringify(req.body, { format: 'RFC1738' });
-  const timestamp = req.headers['x-slack-request-timestamp'];
-
-  var currentTime = Math.floor(new Date().getTime() / 1000);
-  if (Math.abs(currentTime - timestamp) > 60 * 5) {
-    /*
-     * The request timestamp is more than five minutes from local time.
-     * It could be a replay attack, so let's ignore it.
-     */
-    throw new Error('Request timestamp is more than 5min difference from local time');
-  }
-
-  if (!slackSigningSecret) {
-    throw new Error('Empty Slack signing secret');
-  }
-
-  const signatureBaseString = `v0:${timestamp}:${rawBody}`;
-  const mySignature = 'v0=' +
-    crypto.createHmac('sha256', slackSigningSecret)
-    .update(signatureBaseString, 'utf8')
-    .digest('hex');
-
-  if (!crypto.timingSafeEqual(
-      Buffer.from(mySignature, 'utf8'),
-      Buffer.from(slackSignature, 'utf8'))) {
-    throw new Error('Signature verification failed');
-  }
-};
 
 const sendSlackRequest = (responseUrl, bodyObj) => {
   fetch(responseUrl, {
@@ -293,15 +256,7 @@ const isLunchDayAfterPublish = () => {
 const generateLunchGroups = async date => {
   const users = await getUsers(date);
   const userIds = Object.keys(users);
-
-  const shuffledIds = shuffle(userIds);
-  const groups = [];
-  while (shuffledIds.length >= 6) {
-    groups.push(shuffledIds.splice(0, 3));
-  }
-  groups.push(shuffledIds);
-
-  return groups;
+  return createGroups(userIds);
 };
 
 // -------- CRON ------------
