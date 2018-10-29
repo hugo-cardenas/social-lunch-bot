@@ -58,7 +58,7 @@ Remember, I'm arranging once every week an exciting lunch event, shuffling peopl
 Next lunch date is *${lunchDate.format('dddd D.M')}*
 ${getNumUsersText(numUsers)}
 
-Join now by running the command */social-lunch*!
+Join now by running the command \`/social-lunch\`!
 (you can run it in your private Slack channel - no one will see it except you)`
 );
 
@@ -72,7 +72,7 @@ const getTooLateText = () => (
   `This week's lunch day is today :hamburger:
 Unfortunately, the lunch groups have already been generated (check ${slackChannel}), so it's too late to join this time, sorry.
 
-Run */social-lunch* again after today to join the lunch next week!`
+Run \`/social-lunch\` again after today to join the lunch next week!`
 );
 
 const getJoinedStatusText = (lunchDate, numUsers) => (

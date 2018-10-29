@@ -21,13 +21,13 @@ const {
   saveGroups,
   getGroups
 } = require('./db');
+const {
+  getNextLunchDate,
+  isLunchDayAfterPublish
+} = require('./date');
 const createGroups = require('./createGroups');
 const verifySignature = require('./verifySignature');
 const config = require('./config');
-
-const PUBLISH_HOUR = 11;
-// 0 is Sunday
-const LUNCH_DAY = 5;
 
 const app = express();
 app.use(bodyParser.json());
@@ -179,20 +179,6 @@ const leave = async userId => {
 
 // ----------------
 
-const getNextLunchDate = () => {
-  let lunchDate = moment();
-  while (lunchDate.day() !== LUNCH_DAY) {
-    lunchDate.add(1, 'days');
-    lunchDate.hour(0);
-  }
-  return lunchDate;
-};
-
-const isLunchDayAfterPublish = () => {
-  const now = moment();
-  return now.day() === LUNCH_DAY && now.hour() >= PUBLISH_HOUR;
-};
-
 const generateLunchGroups = async date => {
   const users = await getUsers(date);
   const userIds = Object.keys(users);
@@ -232,6 +218,10 @@ const sendReminder = async () => {
   });
 }
 
-new CronJob(`0 0 ${PUBLISH_HOUR} * * ${LUNCH_DAY}`, async () => {
+new CronJob(`0 0 ${config.publishHour} * * ${config.lunchDay}`, async () => {
   generateGroupsAndSendMessage();
+}, null, true, 'Europe/Helsinki');
+
+new CronJob(`0 0 9 * * ${config.lunchDay - 1},${config.lunchDay}`, async () => {
+  sendReminder();
 }, null, true, 'Europe/Helsinki');
