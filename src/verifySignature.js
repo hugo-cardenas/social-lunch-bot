@@ -1,7 +1,6 @@
 const crypto = require('crypto');
 const qs = require('qs');
-
-const slackSigningSecret = process.env.SLACK_SIGNING_SECRET;
+const config = require('./config');
 
 /*
  * Verify signature in Slack requests
@@ -21,13 +20,13 @@ const verifySignature = req => {
     throw new Error('Request timestamp is more than 5min difference from local time');
   }
 
-  if (!slackSigningSecret) {
+  if (!config.slackSigningSecret) {
     throw new Error('Empty Slack signing secret');
   }
 
   const signatureBaseString = `v0:${timestamp}:${rawBody}`;
   const mySignature = 'v0=' +
-    crypto.createHmac('sha256', slackSigningSecret)
+    crypto.createHmac('sha256', config.slackSigningSecret)
     .update(signatureBaseString, 'utf8')
     .digest('hex');
 

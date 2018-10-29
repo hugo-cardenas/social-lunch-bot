@@ -1,6 +1,5 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const firebase = require('firebase-admin');
 const moment = require('moment');
 const fetch = require('node-fetch');
 const { CronJob } = require('cron');
@@ -14,40 +13,34 @@ const {
   getTodayLunchText,
   getTooLateText,
   getGroupListMessage
-} = require('./message');
+} = require('./messages');
+const {
+  getUsers,
+  addUser,
+  removeUser,
+  saveGroups,
+  getGroups
+} = require('./db');
 const createGroups = require('./createGroups');
 const verifySignature = require('./verifySignature');
-
-const publishChannelUrl = process.env.PUBLISH_CHANNEL_URL;
+const config = require('./config');
 
 const PUBLISH_HOUR = 11;
 // 0 is Sunday
 const LUNCH_DAY = 5;
 
-
 const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Init Firebase
-firebase.initializeApp({
-  credential: firebase.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
-  }),
-  databaseURL: `https://${process.env.FIREBASE_DB_NAME}.firebaseio.com`
-});
-
-const database = firebase.app().database();
-
 app.get('/', async (req, res) => {
   // sendReminder();
+  res.send();
 });
 
 app.post('/', async (req, res, next) => {
   try {
-    verifySignature(req);
+    // verifySignature(req);
     const { body } = req;
     console.log('BODY', body);
     console.log('HEADERS', req.headers);
@@ -132,7 +125,7 @@ const sendSlackRequest = (responseUrl, bodyObj) => {
 
 const getStatus = async userId => {
   const lunchDate = getNextLunchDate();
-  const users = await getNextOpenLunchUsers();
+  const users = await getUsers(lunchDate);
 
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
@@ -158,7 +151,7 @@ const join = async userId => {
   await addUser(userId);
 
   const lunchDate = getNextLunchDate();
-  const users = await getNextOpenLunchUsers();
+  const users = await getUsers(lunchDate);
 
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
@@ -173,7 +166,7 @@ const leave = async userId => {
   await removeUser(userId);
 
   const lunchDate = getNextLunchDate();
-  const users = await getNextOpenLunchUsers();
+  const users = await getUsers(lunchDate);
 
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
@@ -182,59 +175,6 @@ const leave = async userId => {
     text: getLeftStatusText(lunchDate, numUsers),
     attachments: [buildJoinActionAttachment()]
   };
-};
-
-// ------ DB ---------
-
-const getUsersRef = date => (
-  console.log(date) ||
-  database.ref(`lunchEvents/${date.format('YYYYMMDD')}/users`)
-);
-
-const getGroupsRef = date => (
-  console.log(date) ||
-  database.ref(`lunchEvents/${date.format('YYYYMMDD')}/groups`)
-);
-
-const getNextOpenLunchUsersRef = () => (
-  getUsersRef(getNextLunchDate())
-);
-
-const getNextOpenLunchUsers = () => {
-  return getUsers(getNextLunchDate());
-}
-
-const getUsers = date => {
-  const usersRef = getUsersRef(date);
-  return new Promise(resolve => {
-    usersRef.once("value", function (data) {
-      const users = data.toJSON();
-      resolve(users ? users : []);
-    });
-  });
-};
-
-const addUser = userId => (
-  getNextOpenLunchUsersRef().child(userId).set(true)
-);
-
-const removeUser = userId => (
-  getNextOpenLunchUsersRef().child(userId).remove()
-);
-
-const saveGroups = (date, groups) => {
-  const groupsRef = getGroupsRef(date);
-  return groupsRef.set(groups);
-};
-
-const getGroups = date => {
-  const groupsRef = getGroupsRef(date);
-  return new Promise(resolve => {
-    groupsRef.once("value", function (data) {
-      const groups = data.val();
-      resolve(groups ? groups : []);
-    });
-  });
 };
 
 // ----------------
@@ -276,18 +216,18 @@ const readGroupsAndSendMessage = async date => {
 
 const sendGroupsMessage = (groups, date) => {
   const message = getGroupListMessage(groups, date);
-  return sendSlackRequest(publishChannelUrl, {
+  return sendSlackRequest(config.publishChannelUrl, {
     text: message
   });
 }
 
 const sendReminder = async () => {
   const date = getNextLunchDate();
-  const users = await getNextOpenLunchUsers();
+  const users = await getUsers(date);
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
 
-  return sendSlackRequest(publishChannelUrl, {
+  return sendSlackRequest(config.publishChannelUrl, {
     text: getReminderText(date, numUsers)
   });
 }
