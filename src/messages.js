@@ -102,9 +102,9 @@ const getGroupListMessage = (userGroups, lunchDate) => {
         group.map(userId => `<@${userId}>`).join('\n') + 
         '\n';
     })
-    .join('\n') +
-    '\n' +
-    'Have fun! :awesome:'
+    .join('\n') + '\n' +
+    'Group members, now you can talk to each other :scream: and agree a place/time for lunch.\n' + 
+    'Bon appétit! :awesome:'
 };
 
 module.exports = {
