@@ -1,7 +1,7 @@
 /*
  * The bot will post to this channel the list of groups.
  */
-const slackChannel = '<#C6N8X0SUV|helsinki_general>';
+const config = require('./config');
 
 const buildCancelActionAttachment = () => (
   buildAttachmentWithActions([
@@ -51,11 +51,11 @@ Next lunch date is *${lunchDate.format('dddd D.M')}*
 ${getNumUsersText(numUsers)}`
 );
 
-const getReminderText = (lunchDate, numUsers) => (
+const getReminderText = (lunchDate, numUsers, isToday = false) => (
   `Hi all! :wave:
 
 Remember, I'm arranging once every week an exciting lunch event, shuffling people in groups of 3-5 random coworkers who will go together for lunch :awesome:
-Next lunch date is *${lunchDate.format('dddd D.M')}*
+Next lunch date is ${isToday ? '*TODAY,* ' : ''}*${lunchDate.format('dddd D.M')}*
 ${getNumUsersText(numUsers)}
 
 Join now by running the command \`/social-lunch\`!
@@ -65,12 +65,12 @@ Join now by running the command \`/social-lunch\`!
 const getTodayLunchText = () => (
   `This week's lunch day is today :hamburger:
 
-Check the lunch groups published in ${slackChannel}!`
+Check the lunch groups published in ${config.publishChannelId}!`
 );
 
 const getTooLateText = () => (
   `This week's lunch day is today :hamburger:
-Unfortunately, the lunch groups have already been generated (check ${slackChannel}), so it's too late to join this time, sorry.
+Unfortunately, the lunch groups have already been generated (check ${config.publishChannelId}), so it's too late to join this time, sorry.
 
 Run \`/social-lunch\` again after today to join the lunch next week!`
 );
@@ -78,7 +78,7 @@ Run \`/social-lunch\` again after today to join the lunch next week!`
 const getJoinedStatusText = (lunchDate, numUsers) => (
   `You have joined the next lunch on *${lunchDate.format('dddd D.M')}*! :feelsgoodman:
 ${getNumUsersText(numUsers)}
-I'll post a list with the lunch groups to ${slackChannel} on *${lunchDate.format('dddd D.M')} at 11.00*.
+I'll post a list with the lunch groups to ${config.publishChannelId} on *${lunchDate.format('dddd D.M')} at 11.00*.
 `
 );
 

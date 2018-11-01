@@ -34,7 +34,6 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.get('/', async (req, res) => {
-  // sendReminder();
   res.send();
 });
 
@@ -189,10 +188,14 @@ const generateLunchGroups = async date => {
 
 const generateGroupsAndSendMessage = async () => {
   // TODO Add retries if failure for these actions
-  const date = getNextLunchDate();
-  const groups = await generateLunchGroups(date);
-  await saveGroups(date, groups);
-  sendGroupsMessage(groups, date);
+  try {
+    const date = getNextLunchDate();
+    const groups = await generateLunchGroups(date);
+    await saveGroups(date, groups);
+    sendGroupsMessage(groups, date);
+  } catch (error) {
+    console.log('Generating groups failed', error);
+  }
 }
 
 const readGroupsAndSendMessage = async date => {
@@ -212,16 +215,23 @@ const sendReminder = async () => {
   const users = await getUsers(date);
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
-
+  const isLunchDay = moment().day() === config.lunchDay;
+  
   return sendSlackRequest(config.publishChannelUrl, {
-    text: getReminderText(date, numUsers)
+    text: getReminderText(date, numUsers, isLunchDay)
   });
 }
 
+/*
+ * Generate and publish lunch groups on the lunch day at publish hour
+ */
 new CronJob(`0 0 ${config.publishHour} * * ${config.lunchDay}`, async () => {
   generateGroupsAndSendMessage();
 }, null, true, 'Europe/Helsinki');
 
-new CronJob(`0 0 9 * * ${config.lunchDay - 1},${config.lunchDay}`, async () => {
+/*
+ * Send reminder on the lunch day at 9.00
+ */
+new CronJob(`0 0 9 * * ${config.lunchDay}`, async () => {
   sendReminder();
 }, null, true, 'Europe/Helsinki');
