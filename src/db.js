@@ -14,12 +14,10 @@ firebase.initializeApp({
 const database = firebase.app().database();
 
 const getUsersRef = date => (
-  console.log(date) ||
   database.ref(`lunchEvents/${date.format('YYYYMMDD')}/users`)
 );
 
 const getGroupsRef = date => (
-  console.log(date) ||
   database.ref(`lunchEvents/${date.format('YYYYMMDD')}/groups`)
 );
 

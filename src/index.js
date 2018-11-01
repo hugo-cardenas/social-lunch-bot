@@ -62,6 +62,7 @@ app.post('/', async (req, res, next) => {
       throw new Error('Invalid command');
     }
   } catch (error) {
+    console.log('Main command failed', error);
     next(error);
   }
 });
@@ -104,6 +105,7 @@ app.post('/action', async (req, res, next) => {
       }
     }
   } catch (error) {
+    console.log('Action failed', error);
     next(error);
   }
 });
@@ -147,9 +149,8 @@ const getStatus = async userId => {
 }
 
 const join = async userId => {
-  await addUser(userId);
-
   const lunchDate = getNextLunchDate();
+  await addUser(lunchDate, userId);
   const users = await getUsers(lunchDate);
 
   const userIds = Object.keys(users);
@@ -162,9 +163,8 @@ const join = async userId => {
 };
 
 const leave = async userId => {
-  await removeUser(userId);
-
   const lunchDate = getNextLunchDate();
+  await removeUser(lunchDate, userId);
   const users = await getUsers(lunchDate);
 
   const userIds = Object.keys(users);
