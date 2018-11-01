@@ -39,7 +39,7 @@ app.get('/', async (req, res) => {
 
 app.post('/', async (req, res, next) => {
   try {
-    // verifySignature(req);
+    verifySignature(req);
     const { body } = req;
     console.log('BODY', body);
     console.log('HEADERS', req.headers);
@@ -69,7 +69,7 @@ app.post('/', async (req, res, next) => {
 /*
  * After pressing a button in one of the Bot messages (Join or Cancel)
  */
-app.post('/action', async (req, res) => {
+app.post('/action', async (req, res, next) => {
   try {
     verifySignature(req);
 
