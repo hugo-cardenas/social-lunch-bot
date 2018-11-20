@@ -2,7 +2,7 @@ const firebase = require('firebase-admin');
 const config = require('./config');
 
 // Init Firebase
-firebase.initializeApp({
+const app = firebase.initializeApp({
   credential: firebase.credential.cert({
     projectId: config.firebase.projectId,
     clientEmail: config.firebase.clientEmail,
@@ -11,7 +11,11 @@ firebase.initializeApp({
   databaseURL: config.firebase.databaseURL
 });
 
-const database = firebase.app().database();
+const database = app.database();
+
+const close = () => {
+  return app.delete();
+};
 
 const getUsersRef = date => (
   database.ref(`lunchEvents/${date.format('YYYYMMDD')}/users`)
@@ -55,6 +59,7 @@ const getGroups = date => {
 };
 
 module.exports = {
+  close,
   getUsers,
   addUser,
   removeUser,
