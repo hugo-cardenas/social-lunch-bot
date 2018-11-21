@@ -13,10 +13,6 @@ const app = firebase.initializeApp({
 
 const database = app.database();
 
-const close = () => {
-  return app.delete();
-};
-
 const getUsersRef = date => (
   database.ref(`lunchEvents/${date.format('YYYYMMDD')}/users`)
 );
@@ -59,7 +55,7 @@ const getGroups = date => {
 };
 
 module.exports = {
-  close,
+  app,
   getUsers,
   addUser,
   removeUser,

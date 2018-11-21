@@ -78,7 +78,7 @@ app.post('/action', async (req, res, next) => {
 
     res.send();
     const { body } = req;
-    
+
     const payload = body.payload ? JSON.parse(body.payload) : {};
     if (payload.type === 'interactive_message' && payload.actions && payload.actions[0]) {
       if (isLunchDayAfterPublish()) {

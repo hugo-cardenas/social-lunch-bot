@@ -1,5 +1,5 @@
 const moment = require('moment');
-const now = require('./now');
+const { now } = require('./utils');
 const config = require('../config');
 
 const getNextLunchDate = () => {
@@ -13,8 +13,6 @@ const getNextLunchDate = () => {
 
 const isLunchDayAfterPublish = () => {
   const date = now();
-  console.log(date);
-  console.log(date.day(), config.lunchDay, date.hour(), config.publishHour);
   return date.day() === config.lunchDay && date.hour() >= config.publishHour;
 };
 
