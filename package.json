@@ -4,7 +4,6 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
-    "deploy": "now --public && now alias",
     "start": "node_modules/nodemon/bin/nodemon.js src/index.js",
     "test": "jest"
   },
@@ -15,20 +14,16 @@
     "cron": "^1.4.1",
     "express": "^4.16.3",
     "firebase-admin": "^6.0.0",
-    "jest": "^23.6.0",
     "moment": "^2.22.2",
-    "nock": "^10.0.2",
     "node-fetch": "^2.2.0",
-    "nodemon": "^1.18.5",
     "qs": "^6.5.2",
-    "supertest": "^3.3.0",
     "verror": "^1.10.0"
   },
-  "now": {
-    "name": "social-lunch-bot",
-    "alias": "social-lunch-bot.now.sh"
-  },
   "devDependencies": {
-    "eslint": "^5.9.0"
+    "eslint": "^5.9.0",
+    "jest": "^23.6.0",
+    "nock": "^10.0.2",
+    "nodemon": "^1.18.6",
+    "supertest": "^3.3.0"
   }
 }
