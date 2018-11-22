@@ -27,5 +27,8 @@
   "now": {
     "name": "social-lunch-bot",
     "alias": "social-lunch-bot.now.sh"
+  },
+  "devDependencies": {
+    "eslint": "^5.9.0"
   }
 }

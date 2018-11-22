@@ -1,11 +1,11 @@
 const request = require('supertest');
-const fetch = require('node-fetch');
 const nock = require('nock');
 const moment = require('moment');
 const app = require('../src/app');
 const config = require('../src/config');
 const { app: dbApp } = require('../src/db');
 const dateUtils = require('../src/date/utils');
+const { generateGroupsAndSendMessage } = require('../src/group');
 
 jest.mock('../src/date/utils');
 jest.mock('../src/log');
@@ -18,7 +18,7 @@ jest.mock('../src/verifySignature', () => {
 config.lunchDay = 5;
 config.publishHour = 11;
 config.publishChannelId = '<publish-channel-id>';
-config.publishChannelUrl = 'channel.slack.foo';
+config.publishChannelUrl = 'https://foo.slack/publish-channel';
 
 // Wipe the whole DB
 const cleanDB = () => (
@@ -27,7 +27,7 @@ const cleanDB = () => (
 
 beforeEach(async () => {
   await cleanDB();
-})
+});
 
 afterAll(async () => {
   await cleanDB();
@@ -38,9 +38,9 @@ afterAll(async () => {
 const mockNow = ({ date = 4, hour = 10, minute = 0, second = 0 } = {}) => {
   const now = moment();
   // Default: 4.1.2018 10.00.00 - Thursday (day 4)
-  now.second(second)
-  now.minute(minute)
-  now.hour(hour)
+  now.second(second);
+  now.minute(minute);
+  now.hour(hour);
   now.date(date);
   now.month(0);
   now.year(2018);
@@ -60,11 +60,11 @@ test('get status', async done => {
 
   // Expect the actual request made in response to the command
   expectRequest(responseUrl, body => {
-    expectStringContains(body.text, 
+    expectStringContains(body.text,
       'I\'ll set you up for an exciting lunch together with 2-4 other random coworkers');
     expectStringContains(body.text, 'Next lunch date');
     expectStringContains(body.text, 'Friday');
-    
+
     expect(body.attachments.length).toBe(1);
 
     const actions = body.attachments[0].actions;
@@ -168,26 +168,56 @@ test('join, cancel', async done => {
   expect(response2.body).toEqual({});
 });
 
-// TODO Fix - sort out how to mock Cron time
-test.skip('join, publish groups', async done => {
-  const responseUrl1 = 'https://foo.slack/bar1';
-  const responseUrl2 = 'https://foo.slack/bar2';
-  const responseUrl3 = 'https://foo.slack/bar3';
+test('join, publish groups', async done => {
+  const responseUrl1 = 'https://foo.slack/response/1';
+  const responseUrl2 = 'https://foo.slack/response/2';
+  const responseUrl3 = 'https://foo.slack/response/3';
+  const responseUrl4 = 'https://foo.slack/response/4';
+  const responseUrl5 = 'https://foo.slack/response/5';
+  const responseUrl6 = 'https://foo.slack/response/6';
+  const responseUrl7 = 'https://foo.slack/response/7';
+
+  const userId1 = '101';
+  const userId2 = '102';
+  const userId3 = '103';
+  const userId4 = '104';
+  const userId5 = '105';
+  const userId6 = '106';
+  const userId7 = '107';
   
-  const userId1 = '42';
-  const userId2 = '44';
-  const userId3 = '46';
+  const userIds = [
+    userId1,
+    userId2,
+    userId3,
+    userId4,
+    userId5,
+    userId6,
+    userId7
+  ];
 
-  mockNow({ date: 5, hour: 10, minute: 59, second: 57 });
+  mockNow();
 
-  // Join request
+  // Nock all join requests
   expectRequest(responseUrl1);
   expectRequest(responseUrl2);
   expectRequest(responseUrl3);
+  expectRequest(responseUrl4);
+  expectRequest(responseUrl5);
+  expectRequest(responseUrl6);
+  expectRequest(responseUrl7);
 
   // Publish groups
   expectRequest(config.publishChannelUrl, body => {
-    console.log(body);
+    expectStringContains(body.text, 'These are the lunch groups');
+    expectStringContains(body.text, 'Friday 5.1');
+    expectStringContains(body.text, 'Group 1');
+    expectStringContains(body.text, 'Group 2');
+    expectStringNotContains(body.text, 'Group 3');
+
+    userIds.forEach(id => {
+      expectStringContains(body.text, `<@${id}>`);
+    });
+    
     done();
     return true;
   });
@@ -195,6 +225,39 @@ test.skip('join, publish groups', async done => {
   await postJoinAction(responseUrl1, userId1);
   await postJoinAction(responseUrl2, userId2);
   await postJoinAction(responseUrl3, userId3);
+  await postJoinAction(responseUrl4, userId4);
+  await postJoinAction(responseUrl5, userId5);
+  await postJoinAction(responseUrl6, userId6);
+  await postJoinAction(responseUrl7, userId7);
+
+  generateGroupsAndSendMessage();
+});
+
+test('join, publish groups, not enough people', async done => {
+  const responseUrl1 = 'https://foo.slack/response/1';
+  const responseUrl2 = 'https://foo.slack/response/2';
+
+  const userId1 = '101';
+  const userId2 = '102';
+  
+  mockNow();
+
+  // Nock all join requests
+  expectRequest(responseUrl1);
+  expectRequest(responseUrl2);
+
+  // Publish groups
+  expectRequest(config.publishChannelUrl, body => {
+    expectStringContains(body.text, 'There weren\'t enough people');
+    expectStringNotContains(body.text, 'Group 1');
+    done();
+    return true;
+  });
+
+  await postJoinAction(responseUrl1, userId1);
+  await postJoinAction(responseUrl2, userId2);
+
+  generateGroupsAndSendMessage();
 });
 
 const postCommand = body => {
@@ -203,7 +266,7 @@ const postCommand = body => {
 
 const postAction = body => {
   return post('/action', body);
-}
+};
 
 const post = (url, body) => {
   return request(app)
@@ -256,4 +319,8 @@ const expectRequest = (url, callback) => {
 
 const expectStringContains = (string, expected) => {
   expect(string).toEqual(expect.stringContaining(expected));
-}
+};
+
+const expectStringNotContains = (string, expected) => {
+  expect(string).toEqual(expect.not.stringContaining(expected));
+};

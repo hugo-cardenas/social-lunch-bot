@@ -1,35 +1,31 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-const moment = require('moment');
-const fetch = require('node-fetch');
-const { CronJob } = require('cron');
 const {
   buildCancelActionAttachment,
   buildJoinActionAttachment,
   getBasicStatusText,
-  getReminderText,
   getJoinedStatusText,
   getLeftStatusText,
   getTodayLunchText,
-  getTooLateText,
-  getGroupListMessage
+  getTooLateText
 } = require('./messages');
 const {
   getUsers,
   addUser,
-  removeUser,
-  saveGroups,
-  getGroups
+  removeUser
 } = require('./db');
 const {
   getNextLunchDate,
   isLunchDayAfterPublish
 } = require('./date');
-const createGroups = require('./createGroups');
+const { sendSlackRequest } = require('./request');
 const verifySignature = require('./verifySignature');
-const config = require('./config');
-const { VError, WError } = require('verror');
+const { WError } = require('verror');
 const log = require('./log');
+const {
+  setPublishGroupsCron,
+  setReminderCron
+} = require('./cron');
 
 const app = express();
 app.use(bodyParser.json());
@@ -46,19 +42,9 @@ app.post('/', async (req, res, next) => {
     const command = body.command;
     if (command === '/social-lunch') {
       res.send();
-      
-      if (body.text === 'groups') {
-        // List lunch groups if already generated for today
-        if (isLunchDayAfterPublish()) {
-          readGroupsAndSendMessage(getNextLunchDate());
-        }
-      } else {
-        // Default functionality
-        const statusBody = await getStatus(body.user_id);
-        statusBody.replace_original = true;
-        sendSlackRequest(body.response_url, statusBody);
-      }
-
+      const statusBody = await getStatus(body.user_id);
+      statusBody.replace_original = true;
+      sendSlackRequest(body.response_url, statusBody);
     } else {
       throw new Error(`Invalid command: ${command}`);
     }
@@ -118,20 +104,10 @@ app.use((err, req, res, next) => {
 
 // ---------------
 
-const sendSlackRequest = (responseUrl, bodyObj) => {
-  fetch(responseUrl, {
-    method: 'POST',
-    headers: {
-      'Content-type': 'application/json'
-    },
-    body: JSON.stringify(bodyObj)
-  });
-};
-
 const getStatus = async userId => {
   const lunchDate = getNextLunchDate();
   const users = await getUsers(lunchDate);
-  
+
   const userIds = Object.keys(users);
   const numUsers = userIds.length;
 
@@ -148,9 +124,9 @@ const getStatus = async userId => {
     } : {
       text: getBasicStatusText(lunchDate, numUsers),
       attachments: [buildJoinActionAttachment()]
-    }
+    };
   }
-}
+};
 
 const join = async userId => {
   const lunchDate = getNextLunchDate();
@@ -180,64 +156,7 @@ const leave = async userId => {
   };
 };
 
-// ----------------
-
-const generateLunchGroups = async date => {
-  const users = await getUsers(date);
-  const userIds = Object.keys(users);
-  return createGroups(userIds);
-};
-
-// -------- CRON ------------
-
-const generateGroupsAndSendMessage = async () => {
-  // TODO Add retries if failure for these actions
-  try {
-    const date = getNextLunchDate();
-    const groups = await generateLunchGroups(date);
-    await saveGroups(date, groups);
-    sendGroupsMessage(groups, date);
-  } catch (error) {
-    log('Generating groups failed', error);
-  }
-}
-
-const readGroupsAndSendMessage = async date => {
-  const groups = await getGroups(date);
-  sendGroupsMessage(groups, date);
-}
-
-const sendGroupsMessage = (groups, date) => {
-  const message = getGroupListMessage(groups, date);
-  return sendSlackRequest(config.publishChannelUrl, {
-    text: message
-  });
-}
-
-const sendReminder = async () => {
-  const date = getNextLunchDate();
-  const users = await getUsers(date);
-  const userIds = Object.keys(users);
-  const numUsers = userIds.length;
-  const isLunchDay = moment().day() === config.lunchDay;
-  
-  return sendSlackRequest(config.publishChannelUrl, {
-    text: getReminderText(date, numUsers, isLunchDay)
-  });
-}
-
-/*
- * Generate and publish lunch groups on the lunch day at publish hour
- */
-new CronJob(`0 0 ${config.publishHour} * * ${config.lunchDay}`, async () => {
-  generateGroupsAndSendMessage();
-}, null, true, 'Europe/Helsinki');
-
-/*
- * Send reminder on the lunch day at 9.00
- */
-new CronJob(`0 0 9 * * ${config.lunchDay}`, async () => {
-  sendReminder();
-}, null, true, 'Europe/Helsinki');
-
 module.exports = app;
+
+setPublishGroupsCron();
+setReminderCron();

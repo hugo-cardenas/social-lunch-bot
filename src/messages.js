@@ -33,15 +33,13 @@ const buildJoinActionAttachment = () => (
   ])
 );
 
-const buildAttachmentWithActions = actions => (
-  {
-    "fallback": "You are unable to perform an action",
-    "callback_id": "wopr_game",
-    "color": "#3AA3E3",
-    "attachment_type": "default",
-    "actions": actions
-  }
-);
+const buildAttachmentWithActions = actions => ({
+  "fallback": "You are unable to perform an action",
+  "callback_id": "wopr_game",
+  "color": "#3AA3E3",
+  "attachment_type": "default",
+  "actions": actions
+});
 
 const getBasicStatusText = (lunchDate, numUsers) => (
   `Hi there! :wave:
@@ -90,7 +88,7 @@ Please, reconsider your decision.
 );
 
 const getNumUsersText = numUsers => (
-  numUsers > 6 ? 
+  numUsers > 6 ?
   `There are *${numUsers}* people waiting for the next lunch!` + '\n' :
   ''
 );
@@ -98,13 +96,18 @@ const getNumUsersText = numUsers => (
 const getGroupListMessage = (userGroups, lunchDate) => {
   return `These are the lunch groups for today, *${lunchDate.format('dddd D.M')}*:` + '\n\n' +
     userGroups.map((group, i) => {
-      return `*Group ${i + 1}:*` + '\n' + 
-        group.map(userId => `<@${userId}>`).join('\n') + 
+      return `*Group ${i + 1}:*` + '\n' +
+        group.map(userId => `<@${userId}>`).join('\n') +
         '\n';
     })
     .join('\n') + '\n' +
-    'Group members, now you can talk to each other :scream: and agree a place/time for lunch.\n' + 
+    'Group members, now you can talk to each other :scream: and agree a place/time for lunch.\n' +
     'Bon appétit! :awesome:'
+};
+
+const getNoGroupsMessage = () => {
+  return 'Too bad! There weren\'t enough people for a social lunch group today (min. 3) :feelsbadman:\n' + 
+    'Let\'s hope more people join next time!';
 };
 
 module.exports = {
@@ -116,5 +119,6 @@ module.exports = {
   getLeftStatusText,
   getTodayLunchText,
   getTooLateText,
-  getGroupListMessage
+  getGroupListMessage,
+  getNoGroupsMessage
 };
