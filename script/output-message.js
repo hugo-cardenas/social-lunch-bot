@@ -12,5 +12,6 @@ const {
 const moment = require('moment');
 
 console.log(JSON.stringify({
-  text: getTodayLunchText(moment(), true)
+  text: getBasicStatusText(moment(), true),
+  attachments: [buildJoinActionAttachment()]
 }));

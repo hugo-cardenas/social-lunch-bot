@@ -67,6 +67,7 @@ app.post('/action', async (req, res, next) => {
 
     const payload = body.payload ? JSON.parse(body.payload) : {};
     if (payload.type === 'interactive_message' && payload.actions && payload.actions[0]) {
+      // TODO Fix this logic - add tests for it
       if (isLunchDayAfterPublish()) {
         const body = {
           text: hasUserJoined ? getTodayLunchText() : getTooLateText()
