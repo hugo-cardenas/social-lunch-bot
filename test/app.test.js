@@ -6,12 +6,13 @@ const config = require('../src/config');
 const { app: dbApp } = require('../src/db');
 const dateUtils = require('../src/date/utils');
 const { generateGroupsAndSendMessage } = require('../src/group');
+const verifySignature = require('../src/verifySignature');
 
 jest.mock('../src/date/utils');
 jest.mock('../src/log');
 
 jest.mock('../src/verifySignature', () => {
-  return () => true;
+  return jest.fn(() => true);
 });
 
 // Fixed for the test
@@ -71,6 +72,10 @@ test('get status', async done => {
     expect(actions.length).toBe(1);
     expect(actions[0].value).toBe('join');
     expect(actions[0].text).toBe('Join');
+
+    // Expect signature verification is called
+    expect(verifySignature).toHaveBeenCalled();
+    
     done();
     return true;
   });
@@ -91,8 +96,9 @@ test('get status after lunch publish, not joined', async done => {
 
   // Expect the actual request made in response to the command
   expectRequest(responseUrl, body => {
-    expectStringContains(body.text, 'This week\'s lunch day is today');
+    expectStringContains(body.text, 'lunch groups for today have already been generated');
     expectStringContains(body.text, 'too late to join this time');
+    expectStringContains(body.text, 'Run `/social-lunch` again');
     expect(body.attachments).toBeUndefined();
     done();
     return true;
@@ -106,6 +112,41 @@ test('get status after lunch publish, not joined', async done => {
   // Initial empty 200 response to Slack
   expect(response.status).toBe(200);
   expect(response.body).toEqual({});
+});
+
+test('get status after lunch publish, joined', async done => {
+  const responseUrlJoin = 'https://foo.slack/bar1';
+  const responseUrlStatus = 'https://foo.slack/bar2';
+  const userId = '42';
+  mockNow({ date: 5, hour: 10, minute: 0 });
+
+  // Expect request made in response to join
+  const joinedPromise = new Promise(resolve => {
+    expectRequest(responseUrlJoin, () => {
+      mockNow({ date: 5, hour: 11, minute: 0 });
+      resolve();
+      return true;
+    });
+  });
+
+  // Expect the actual request made in response to status
+  expectRequest(responseUrlStatus, body => {
+    expectStringContains(body.text, `lunch groups for today are already published in ${config.publishChannelId}`);
+    expect(body.attachments).toBeUndefined();
+    done();
+    return true;
+  });
+
+  // Send join request
+  await postJoinAction(responseUrlJoin, userId);
+
+  // Send status request
+  await joinedPromise;
+  await postCommand({
+    command: '/social-lunch',
+    response_url: responseUrlStatus,
+    user_id: userId
+  });
 });
 
 test('join', async done => {
@@ -125,6 +166,10 @@ test('join', async done => {
     expect(actions.length).toBe(1);
     expect(actions[0].value).toBe('leave');
     expect(actions[0].text).toBe('Cancel');
+    
+    // Expect signature verification is called
+    expect(verifySignature).toHaveBeenCalled();
+
     done();
     return true;
   });
@@ -156,6 +201,10 @@ test('join, cancel', async done => {
     expect(actions.length).toBe(1);
     expect(actions[0].value).toBe('join');
     expect(actions[0].text).toBe('Join');
+
+    // Expect signature verification is called
+    expect(verifySignature).toHaveBeenCalled();
+
     done();
     return true;
   });
@@ -184,7 +233,7 @@ test('join, publish groups', async done => {
   const userId5 = '105';
   const userId6 = '106';
   const userId7 = '107';
-  
+
   const userIds = [
     userId1,
     userId2,
@@ -217,7 +266,7 @@ test('join, publish groups', async done => {
     userIds.forEach(id => {
       expectStringContains(body.text, `<@${id}>`);
     });
-    
+
     done();
     return true;
   });
@@ -239,7 +288,7 @@ test('join, publish groups, not enough people', async done => {
 
   const userId1 = '101';
   const userId2 = '102';
-  
+
   mockNow();
 
   // Nock all join requests

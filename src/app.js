@@ -109,8 +109,6 @@ const getStatus = async userId => {
   const users = await getUsers(lunchDate);
 
   const userIds = Object.keys(users);
-  const numUsers = userIds.length;
-
   const hasUserJoined = userIds.includes(userId);
 
   if (isLunchDayAfterPublish()) {
@@ -119,10 +117,10 @@ const getStatus = async userId => {
     };
   } else {
     return hasUserJoined ? {
-      text: getJoinedStatusText(lunchDate, numUsers),
+      text: getJoinedStatusText(lunchDate),
       attachments: [buildCancelActionAttachment()]
     } : {
-      text: getBasicStatusText(lunchDate, numUsers),
+      text: getBasicStatusText(lunchDate),
       attachments: [buildJoinActionAttachment()]
     };
   }
@@ -131,13 +129,8 @@ const getStatus = async userId => {
 const join = async userId => {
   const lunchDate = getNextLunchDate();
   await addUser(lunchDate, userId);
-  const users = await getUsers(lunchDate);
-
-  const userIds = Object.keys(users);
-  const numUsers = userIds.length;
-
   return {
-    text: getJoinedStatusText(lunchDate, numUsers),
+    text: getJoinedStatusText(lunchDate),
     attachments: [buildCancelActionAttachment()]
   };
 };
@@ -145,13 +138,8 @@ const join = async userId => {
 const leave = async userId => {
   const lunchDate = getNextLunchDate();
   await removeUser(lunchDate, userId);
-  const users = await getUsers(lunchDate);
-
-  const userIds = Object.keys(users);
-  const numUsers = userIds.length;
-
   return {
-    text: getLeftStatusText(lunchDate, numUsers),
+    text: getLeftStatusText(lunchDate),
     attachments: [buildJoinActionAttachment()]
   };
 };
