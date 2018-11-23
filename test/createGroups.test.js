@@ -1,4 +1,4 @@
-const createGroups = require('../src/createGroups');
+const createGroups = require('../src/group/createGroups');
 
 const data = [
   {
@@ -47,6 +47,6 @@ data.forEach(({ userIds, expectedGroupLengths }, index) => {
   });
 });
 
-test(`create groups, less than 3 not valid`, () => {
-  expect(() => createGroups([10, 20])).toThrow();
+test('create groups, less than 3 not valid', () => {
+  expect(createGroups([10, 20])).toEqual([]);
 });

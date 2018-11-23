@@ -54,7 +54,7 @@ const getReminderText = (lunchDate, isToday = false) => (
 Reminder, next social lunch is ${isToday ? '*TODAY,* ' : ''}*${lunchDate.format('dddd D.M')}*
 Join to have lunch in a group of 3-5 random coworkers! :awesome:
 
-To join next lunch, run the command \`/social-lunch\`, then press \`Join\`!
+How? - Run the command \`/social-lunch\`, then press \`Join\`!
 (you can run it in your private Slack channel - no one will see it except you)`
 );
 
