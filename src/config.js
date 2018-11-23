@@ -6,7 +6,7 @@ module.exports = {
     databaseURL: `https://${process.env.FIREBASE_DB_NAME}.firebaseio.com`
   },
   publishChannelUrl: process.env.PUBLISH_CHANNEL_URL,
-  publishChannelId: '<#CEA312YKW|helsinki_general>',
+  publishChannelId: '<#C6N8X0SUV|helsinki_general>',
   slackSigningSecret: process.env.SLACK_SIGNING_SECRET,
   /*
    * Date / time config
