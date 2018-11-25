@@ -7,7 +7,8 @@ const {
   getJoinedStatusText,
   getLeftStatusText,
   getTodayLunchText,
-  getTooLateText
+  getTooLateText,
+  getInvalidActionText
 } = require('./messages');
 const {
   getUsers,
@@ -61,34 +62,29 @@ app.post('/', async (req, res, next) => {
 app.post('/action', async (req, res, next) => {
   try {
     verifySignature(req);
-
-    res.send();
     const { body } = req;
 
     const payload = body.payload ? JSON.parse(body.payload) : {};
     if (payload.type === 'interactive_message' && payload.actions && payload.actions[0]) {
-      // TODO Fix this logic - add tests for it
-      if (isLunchDayAfterPublish()) {
-        const body = {
-          text: hasUserJoined ? getTodayLunchText() : getTooLateText()
-        };
-        sendSlackRequest(payload.response_url, body);
-        return;
-      }
-
       const action = payload.actions[0];
       if (action.name === 'lunch' && action.value === 'join') {
+        res.send();
         log('JOINED');
         const body = await join(payload.user.id);
         sendSlackRequest(payload.response_url, body);
         return;
 
       } else if (action.name === 'lunch' && action.value === 'leave') {
+        res.send();
         log('CANCELED');
         const body = await leave(payload.user.id);
         sendSlackRequest(payload.response_url, body);
         return;
+      } else {
+        throw new Error(`Invalid action ${JSON.stringify(action)}`);
       }
+    } else {
+      throw new Error('Invalid payload');
     }
   } catch (e) {
     const error = new WError(e, 'Action failed');
@@ -97,7 +93,7 @@ app.post('/action', async (req, res, next) => {
   }
 });
 
-app.use((err, req, res, next) => {
+app.use((err, req, res) => {
   res.status(500).json({
     error: err.message
   });
@@ -128,6 +124,12 @@ const getStatus = async userId => {
 };
 
 const join = async userId => {
+  if (isLunchDayAfterPublish()) {
+    return {
+      text: getInvalidActionText()
+    };
+  }
+
   const lunchDate = getNextLunchDate();
   await addUser(lunchDate, userId);
   return {
@@ -137,6 +139,12 @@ const join = async userId => {
 };
 
 const leave = async userId => {
+  if (isLunchDayAfterPublish()) {
+    return {
+      text: getInvalidActionText()
+    };
+  }
+  
   const lunchDate = getNextLunchDate();
   await removeUser(lunchDate, userId);
   return {

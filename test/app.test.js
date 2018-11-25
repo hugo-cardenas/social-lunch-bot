@@ -52,7 +52,7 @@ test('invalid command', async () => {
   const response = await postCommand({
     command: 'foo-lunch'
   });
-  expect(response.body.error).toBe('Command failed');
+  expect(response.status).toBe(500);
 });
 
 test('get status', async done => {
@@ -123,7 +123,6 @@ test('get status after lunch publish, joined', async done => {
   // Expect request made in response to join
   const joinedPromise = new Promise(resolve => {
     expectRequest(responseUrlJoin, () => {
-      mockNow({ date: 5, hour: 11, minute: 0 });
       resolve();
       return true;
     });
@@ -142,6 +141,7 @@ test('get status after lunch publish, joined', async done => {
 
   // Send status request
   await joinedPromise;
+  mockNow({ date: 5, hour: 11, minute: 0 });
   await postCommand({
     command: '/social-lunch',
     response_url: responseUrlStatus,
@@ -307,6 +307,51 @@ test('join, publish groups, not enough people', async done => {
   await postJoinAction(responseUrl2, userId2);
 
   generateGroupsAndSendMessage();
+});
+
+test('join after groups are published, invalid action', async done => {
+  const responseUrl = 'https://foo.slack/bar';
+  const userId = '42';
+  mockNow({ date: 5, hour: 11, minute: 10 });
+
+  // Expect request in response to join - invalid action
+  expectRequest(responseUrl, body => {
+    expectStringContains(body.text, 'Invalid action');
+    expectStringContains(body.text, 'The lunch groups for today have already been published');
+    done();
+    return true;
+  });
+
+  await postJoinAction(responseUrl, userId);
+});
+
+test('join, cancel after groups are published, invalid action', async done => {
+  const responseUrlJoin = 'https://foo.slack/join';
+  const responseUrlCancel = 'https://foo.slack/cancel';
+  const userId = '42';
+  mockNow();
+  
+  // Expect request in response to join
+  const joinedPromise = new Promise(resolve => {
+    expectRequest(responseUrlJoin, () => {
+      resolve();
+      return true;
+    });
+  });
+  
+  // Expect request in response to cancel - invalid action
+  expectRequest(responseUrlCancel, body => {
+    expectStringContains(body.text, 'Invalid action');
+    expectStringContains(body.text, 'The lunch groups for today have already been published');
+    done();
+    return true;
+  });
+
+  await postJoinAction(responseUrlJoin, userId);
+  await joinedPromise;
+  
+  mockNow({ date: 5, hour: 11, minute: 10 });
+  await postCancelAction(responseUrlCancel, userId);
 });
 
 const postCommand = body => {

@@ -67,6 +67,11 @@ const getTooLateText = () => (
 \nRun \`/social-lunch\` again after today and join the lunch next week!`
 );
 
+const getInvalidActionText = () => (
+  `:x: Invalid action.
+The lunch groups for today have already been published.`
+);
+
 const getJoinedStatusText = lunchDate => (
   `You have joined the next lunch on *${lunchDate.format('dddd D.M')}*! :feelsgoodman:
 \nI'll post a list with the lunch groups to ${config.publishChannelId} on *${lunchDate.format('dddd D.M')} at 11.00*.`
@@ -103,6 +108,7 @@ module.exports = {
   getLeftStatusText,
   getTodayLunchText,
   getTooLateText,
+  getInvalidActionText,
   getGroupListMessage,
   getNoGroupsMessage
 };
