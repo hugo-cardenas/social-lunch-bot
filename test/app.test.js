@@ -96,8 +96,7 @@ test('get status after lunch publish, not joined', async done => {
 
   // Expect the actual request made in response to the command
   expectRequest(responseUrl, body => {
-    expectStringContains(body.text, 'lunch groups for today have already been generated');
-    expectStringContains(body.text, 'too late to join this time');
+    expectStringContains(body.text, 'lunch groups for today have already been published');
     expectStringContains(body.text, 'Run `/social-lunch` again');
     expect(body.attachments).toBeUndefined();
     done();
@@ -130,7 +129,7 @@ test('get status after lunch publish, joined', async done => {
 
   // Expect the actual request made in response to status
   expectRequest(responseUrlStatus, body => {
-    expectStringContains(body.text, `lunch groups for today are already published in ${config.publishChannelId}`);
+    expectStringContains(body.text, `lunch groups for today have already been published in ${config.publishChannelId}`);
     expect(body.attachments).toBeUndefined();
     done();
     return true;
@@ -317,7 +316,7 @@ test('join after groups are published, invalid action', async done => {
   // Expect request in response to join - invalid action
   expectRequest(responseUrl, body => {
     expectStringContains(body.text, 'Invalid action');
-    expectStringContains(body.text, 'The lunch groups for today have already been published');
+    expectStringContains(body.text, 'lunch groups for today have already been published');
     done();
     return true;
   });
