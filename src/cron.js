@@ -7,18 +7,28 @@ const setPublishGroupsCron = () => {
   /*
    * Generate and publish lunch groups on the lunch day at publish hour
    */
-  new CronJob(`0 0 ${config.publishHour} * * ${config.lunchDay}`, async () => {
-    generateGroupsAndSendMessage();
-  }, null, true, 'Europe/Helsinki');
+  new CronJob({
+    cronTime: `0 0 ${config.publishHour} * * ${config.lunchDay}`,
+    onTick: () => {
+      generateGroupsAndSendMessage();
+    },
+    start: true,
+    utcOffset: config.utcOffset
+  });
 };
 
 const setReminderCron = () => {
   /*
    * Send reminder on the lunch day at 9.00
    */
-  new CronJob(`0 0 9 * * ${config.lunchDay}`, async () => {
-    sendReminder();
-  }, null, true, 'Europe/Helsinki');
+  new CronJob({
+    cronTime: `0 0 9 * * ${config.lunchDay}`,
+    onTick: () => {
+      sendReminder();
+    },
+    start: true,
+    utcOffset: config.utcOffset
+  });
 };
 
 module.exports = {

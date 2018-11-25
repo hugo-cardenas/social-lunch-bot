@@ -59,7 +59,7 @@ How? - Run the command \`/social-lunch\`, then press \`Join\`!
 );
 
 const getTodayLunchText = () => (
-  `The lunch groups for today are already published in ${config.publishChannelId}! :hamburger:  q`
+  `The lunch groups for today are already published in ${config.publishChannelId}! :hamburger:`
 );
 
 const getTooLateText = () => (

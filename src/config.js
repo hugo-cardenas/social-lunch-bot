@@ -13,5 +13,6 @@ module.exports = {
    */
   // 0 is Sunday
   lunchDay: 5,
-  publishHour: 11
+  publishHour: 11,
+  utcOffset: 2
 };

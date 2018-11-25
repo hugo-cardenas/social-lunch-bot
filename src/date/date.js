@@ -1,5 +1,4 @@
-const moment = require('moment');
-const { now } = require('./utils');
+const { now } = require('./utils');
 const config = require('../config');
 
 const getNextLunchDate = () => {
@@ -11,6 +10,11 @@ const getNextLunchDate = () => {
   return lunchDate;
 };
 
+const isLunchDay = () => {
+  const date = now();
+  return date.day() === config.lunchDay;
+};
+
 const isLunchDayAfterPublish = () => {
   const date = now();
   return date.day() === config.lunchDay && date.hour() >= config.publishHour;
@@ -18,5 +22,6 @@ const isLunchDayAfterPublish = () => {
 
 module.exports = {
   getNextLunchDate,
+  isLunchDay,
   isLunchDayAfterPublish
 };
